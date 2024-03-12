@@ -17,25 +17,35 @@
 
 #define MAX_MTP_SOCKETS 25
 
-struct message{
-    char data[1024];
+struct message_header_send{
     int is_ack; // 1 for ack 0 for data
     int number; // sequence number
     time_t time;
 };
 
 
+struct message_send{
+    char data[1024];
+    struct message_header_send header;
+};
+
+struct message_receive{
+    char data[1024];
+    int num;
+};
+
+
 
 struct swnd{
         int window_size; // Window size
-        struct message send_messages[10]; // Sequence numbers of messages sent but not acknowledged
+        struct message_send send_messages[10]; // Sequence numbers of messages sent but not acknowledged
         int next_sequence_number;
         int index_to_write;
     }; // Sender window
 
 struct rwnd{
         int window_size; // Window size
-        struct message receive_messages[5]; // Sequence numbers of messages received but not acknowledged
+        struct message_receive receive_messages[5]; // Sequence numbers of messages received but not acknowledged
         int index_to_receive;
         int next_sequence_number;
     };
@@ -61,4 +71,4 @@ struct SOCK_INFO {
 
 int m_socket(int domain, int type, int protocol);
 int m_bind(int sockfd,char source_ip[50],unsigned short source_port,char dest_ip[50],unsigned short dest_port);
-int m_sendto(struct message m,char ip[50],unsigned short port);
+int m_sendto(int sockfd, const void* data, int len, int flags, const struct sockaddr *servaddr, socklen_t addrlen );

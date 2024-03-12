@@ -42,7 +42,14 @@ int init() {
     
     for (int i = 0; i < MAX_MTP_SOCKETS; i++) {
         SM[i].is_allocated = 0; // Mark all sockets as free
-        SM[i].senders_window.next_sequence_number=-1;
+        SM[i].senders_window.next_sequence_number=1;
+        SM[i].receivers_window.next_sequence_number=1;
+        for(int j=0;j<10;j++){
+            if(j<5){
+                SM[i].receivers_window.receive_messages[j].num-1;
+            }
+            SM[i].senders_window.send_messages[j].header.number=-1;
+        }
         // Initialize other fields as necessary
     }
 
