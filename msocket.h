@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <semaphore.h>
 #include <fcntl.h>
+#include <sys/select.h>
 
 
 
@@ -20,7 +21,7 @@
 struct message_header_send{
     int is_ack; // 1 for ack 0 for data
     int number; // sequence number
-    time_t time;
+    
 };
 
 
@@ -38,6 +39,7 @@ struct message_receive{
 
 struct swnd{
         int window_size; // Window size
+        time_t time[10];
         struct message_send send_messages[10]; // Sequence numbers of messages sent but not acknowledged
         int next_sequence_number;
         int index_to_write;
@@ -48,6 +50,7 @@ struct rwnd{
         struct message_receive receive_messages[5]; // Sequence numbers of messages received but not acknowledged
         int index_to_receive;
         int next_sequence_number;
+        int nospace;
     };
 
 struct MTPSocketInfo {

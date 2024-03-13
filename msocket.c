@@ -259,7 +259,11 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
 
     int idx=SM[sockfd].senders_window.index_to_write;
     SM[sockfd].senders_window.send_messages[idx].header.is_ack=0;
-    SM[sockfd].senders_window.send_messages[idx].header.time=time(NULL);
+    // SM[sockfd].senders_window.send_messages[idx].header.time=time(NULL);
+    
+
+    
+    
     
 
     memset(&(SM[sockfd].senders_window.send_messages[idx].data), 0, sizeof(SM[sockfd].senders_window.send_messages[idx].data));
