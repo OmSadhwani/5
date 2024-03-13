@@ -146,7 +146,61 @@ void *receiver_thread(void *arg) {
 }
 
 void *sender_thread(void *arg) {
-    // Implementation of sender thread behavior
+    key_t key = 6;
+    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
+    if (shmid == -1) {
+        perror("Error creating shared memory");
+        return -1;
+    }
+
+    // Attach shared memory segment
+    struct MTPSocketInfo *SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
+    if (SM == (struct MTPSocketInfo *)(-1)) {
+        perror("shmat");
+        exit(1);
+    }
+    sem_t* sem3= sem_open("/semaphore3",0);
+    while (1) {
+        // Sleep for some time less than T/2
+        sleep(T / 4);
+
+        sem_wait(sem3);
+        // Iterate over MTP sockets
+        for (int i = 0; i < MAX_MTP_SOCKETS; i++) {
+            // Check if MTP socket is active
+            if (SM[i].is_allocated && SM[i].udp_socket_id>=0) {
+                // Check message timeout for this MTP socket
+                int flag=0;
+                for(int j=0;j<10;j++){
+                    time_t current_time;
+                    // Get the current time
+                    current_time = time(NULL);
+                    if(SM[i].senders_window.time[j]==NULL){
+                        continue;
+                    }
+                    else if(SM[i].senders_window.time[j]-current_time>T){
+                        flag=1;
+                        for(int k=0;k<SM[i].senders_window.window_size;k++){
+
+                            current_time = time(NULL);
+                            sendto(SM[i].udp_socket_id,SM[i].senders_window.send_messages[k].data,sizeof(SM[i].senders_window.send_messages[k].data),0,SM[i].other_end_ip,sizeof(SM[i].other_end_ip));
+                            SM[i].senders_window.time[k]=current_time;
+                        }
+                    }
+                }
+                if(!flag){
+                    for(int k=0;k<SM[i].senders_window.window_size;k++){
+                            sendto(SM[i].udp_socket_id,SM[i].senders_window.send_messages[k].data,sizeof(SM[i].senders_window.send_messages[k].data),0,SM[i].other_end_ip,sizeof(SM[i].other_end_ip));
+                            time_t current_time;
+                            current_time = time(NULL);
+                            SM[i].senders_window.time[k]=current_time;
+                        }
+                }
+            }
+        }
+        sem_post(sem3);
+    }
+
     return NULL;
 }
 
@@ -179,9 +233,10 @@ int init() {
         SM[i].receivers_window.nospace=0;
         for(int j=0;j<10;j++){
             if(j<5){
-                SM[i].receivers_window.receive_messages[j].num-1;
+                SM[i].receivers_window.receive_messages[j].num=-1;
             }
             SM[i].senders_window.send_messages[j].header.number=-1;
+            SM[i].senders_window.time[j]=NULL;
         }
         // Initialize other fields as necessary
     }
