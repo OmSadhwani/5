@@ -339,6 +339,10 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
 
     // Copy the message data to the user-provided buffer
     memcpy(buffer, recv_msg.data, len);
+    SM[sockfd].receivers_window.next_sequence_number=(recv_msg.num+1)%16;
+    if(SM[sockfd].receivers_window.next_sequence_number==0){
+        SM[sockfd].receivers_window.next_sequence_number=1;
+    }
 
     // Set the source address if provided
     if (src_addr != NULL) {

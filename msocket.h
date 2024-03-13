@@ -17,6 +17,7 @@
 
 
 #define MAX_MTP_SOCKETS 25
+#define T 60
 
 struct message_header_send{
     int is_ack; // 1 for ack 0 for data
