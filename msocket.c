@@ -27,8 +27,8 @@ int m_socket(int domain, int type, int protocol) {
         return -1;
     }
 
-    key_t key = 5;
-    int shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 | IPC_CREAT);
+    key = 5;
+    shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 | IPC_CREAT);
     if (shmid == -1) {
        
         return -1;
@@ -55,9 +55,10 @@ int m_socket(int domain, int type, int protocol) {
      
         return -1;
     }
-    sem_t* sem1=sem_open('/semaphore1',0);
-    sem_t* sem2= sem_open('/semaphore2',0);
+    sem_t* sem1=sem_open("/semaphore1",0);
+    sem_t* sem2= sem_open("/semaphore2",0);
      // Signal on Sem1
+
     sem_post(sem1);
 
     // Wait on Sem2
@@ -92,7 +93,7 @@ int m_socket(int domain, int type, int protocol) {
     }
     sem_close(sem1);
     sem_close(sem2);
-
+    printf("mtp socket creation succesfull\n");
 
     return free_entry_index;
 }
@@ -115,8 +116,8 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
         exit(1);
     }
 
-    key_t key = 5;
-    int shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 | IPC_CREAT);
+    key = 5;
+    shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 | IPC_CREAT);
     if (shmid == -1) {
        
         return -1;
@@ -143,8 +144,8 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
     sock_info->sock_id=SM[sockfd].udp_socket_id;
     strcpy(sock_info->IP,source_ip);
 
-    sem_t* sem1=sem_open('/semaphore1',0);
-    sem_t* sem2= sem_open('/semaphore2',0);
+    sem_t* sem1=sem_open("/semaphore1",0);
+    sem_t* sem2= sem_open("/semaphore",0);
      // Signal on Sem1
     sem_post(sem1);
 
@@ -182,6 +183,7 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
 
  
     
+    printf("hello\n");
 
     return 0;
 }
@@ -223,7 +225,6 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
     struct sockaddr_in *ipv4 = (struct sockaddr_in *)servaddr;
 
     char ip[50];
-    unsigned short port;
 
 
     inet_ntop(AF_INET, &(ipv4->sin_addr), ip, INET_ADDRSTRLEN);
@@ -295,7 +296,6 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
     return 0;
 }
 
-#include "msocket.h"
 
 int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *src_addr, socklen_t *addrlen) {
     
@@ -378,8 +378,3 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
 
     return len; // Return the length of the received message
 }
-
-
-
-
-

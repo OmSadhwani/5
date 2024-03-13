@@ -13,11 +13,16 @@
 #include <semaphore.h>
 #include <fcntl.h>
 #include <sys/select.h>
-
-
+#include <time.h>
 
 #define MAX_MTP_SOCKETS 25
-#define T 60
+// Define a time period using timespec structure
+#include <time.h>
+#define T 2
+// Define a constant time period of 2 seconds
+// const struct timespec T = { .tv_sec = 2, .tv_nsec = 0 };
+
+
 
 struct message_header_send{
     int is_ack; // 1 for ack 0 for data
