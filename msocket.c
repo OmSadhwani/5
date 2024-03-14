@@ -40,7 +40,7 @@ int m_socket(int domain, int type, int protocol) {
       
         return -1;
     }
-    sem_t* sem3= sem_open("/sem3",0);
+    sem_t* sem3= sem_open(ne,0);
     sem_wait(sem3);
   
     printf("hello\n");
@@ -156,7 +156,7 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
 
     sem_t* sem1=sem_open("/semaphore1",0);
     sem_t* sem2= sem_open("/semaphore2",0);
-    sem_t* sem3= sem_open("/sem3",0);
+    sem_t* sem3= sem_open(ne,0);
 
      // Signal on Sem1
     sem_post(sem1);
@@ -232,7 +232,7 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
         return -1;
     }
 
-    sem_t* sem3= sem_open("/sem3",0);
+    sem_t* sem3= sem_open(ne,0);
     printf("wait1\n");
     if(sem_wait(sem3)==-1){
         return -1;
@@ -335,7 +335,7 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
         return -1;
     }
 
-    sem_t* sem3= sem_open("/sem3",0);
+    sem_t* sem3= sem_open(ne,0);
 
     if(sem_wait(sem3)==-1){
         return -1;

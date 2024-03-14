@@ -21,10 +21,10 @@
 #define ENOTBOUND 177
 // Define a time period using timespec structure
 #include <time.h>
-#define T 2
+#define T 5
 // Define a constant time period of 2 seconds
 // const struct timespec T = { .tv_sec = 2, .tv_nsec = 0 };
-
+#define ne "/sem8"
 
 
 struct message_header_send{

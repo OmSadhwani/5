@@ -7,6 +7,11 @@ sem_t *sem1, *sem2,*sem3;
 struct MTPSocketInfo *SM;
 struct SOCK_INFO *sock_info;
 
+int max(int a,int b){
+    if(a>b)return a;
+    return b;
+}
+
 void signal_handler(int signum) {
     printf("\nReceived Ctrl+C. Detaching shared memory and quitting.\n");
     // Detach the shared memory segments
@@ -52,7 +57,7 @@ void send_ack(int i){
         perror("shmat");
         exit(1);
     }
-    sem_wait(sem3);
+    
 
     int number= SM[i].receivers_window.next_sequence_number;
     for(int j=0;j<5;j++){
@@ -83,7 +88,7 @@ void send_ack(int i){
         perror("sendto failed");
             // Handle error
     }
-    sem_post(sem3);
+    
 }
 
 
@@ -103,7 +108,7 @@ void *receiver_thread(void *arg) {
         exit(1);
     }
     struct timeval timeout;
-    timeout.tv_sec = 8;          // seconds
+    timeout.tv_sec = 5;          // seconds
     timeout.tv_usec = 0;    // microseconds
     
     fd_set readfds;
@@ -145,12 +150,13 @@ void *receiver_thread(void *arg) {
 
                 if (FD_ISSET(sd, &readfds)) {
                     // Handle incoming message
+                    printf("%d index is set\n",i);
                     struct message_send msg;
                     struct sockaddr_in client_addr;
                     int client_addrlen=sizeof(client_addr);
 
                     recvfrom(sd, &msg, sizeof(msg), 0, (struct sockaddr *)&client_addr, &client_addrlen);
-
+                    printf("message received\n");
                     char ip_address[50] ;
 
                  
@@ -164,13 +170,14 @@ void *receiver_thread(void *arg) {
 
                     // Process received message
                     if (msg.header.is_ack == 0) {
-                        
+                        printf("the message is of type data\n");
                         // Data message received
                         // Store in receiver-side message buffer
                         // Send ACK message to the sender
 
                         
                         if(SM[i].receivers_window.nospace==1){ //buffer full
+                            printf("the buffer is full\n");
                             continue;
                         }
                         int expected_number= SM[i].receivers_window.next_sequence_number;
@@ -197,9 +204,11 @@ void *receiver_thread(void *arg) {
 
 
                         if(flag==0){ // sequence number not in window
+                            printf("%d sequence number not in window\n",msg.header.number);
                             continue;
                         }
                         else if(flag==1 && SM[i].receivers_window.receive_messages[index].num!=-1){
+                            printf("duplicated message\n");
                             // struct message_send sen_msg;
                             // sen_msg.header.is_ack=1;
                             // int number= SM[i].receivers_window.next_sequence_number;
@@ -220,6 +229,7 @@ void *receiver_thread(void *arg) {
                             //         // Handle error
                             // }
                             send_ack(i);
+                            printf("the ack is sent for duplicated\n");
                             continue;
                         }
                         struct message_receive m;
@@ -252,15 +262,15 @@ void *receiver_thread(void *arg) {
                         //     perror("sendto failed");
                         //         // Handle error
                         // }
-
+                        printf("sending ack\n");
                         send_ack(i);
-
+                        printf("the ack is sent\n");
 
 
                         // Example code:
                         // send_ack(sd, &client_addr, client_addrlen, received_msg.sequence_number);
                     } else {
-
+                        printf("the message received is ack\n");
                         // ACK message received
                         // Update swnd and remove message from sender-side buffer
                         int index=-1;
@@ -312,6 +322,7 @@ void *receiver_thread(void *arg) {
             for(int i=0;i<25;i++){
                 if(SM[i].is_allocated && SM[i].udp_socket_id>0){
                     FD_SET(SM[i].udp_socket_id,&readfds);
+                    mx=max(mx,SM[i].udp_socket_id);
                     printf("%d added to the set\n",SM[i].udp_socket_id);
                     if(SM[i].receivers_window.nospace==1 && SM[i].receivers_window.window_size>0){
                         SM[i].receivers_window.nospace=0;
@@ -383,7 +394,7 @@ void *sender_thread(void *arg) {
                 if(SM[i].senders_window.time[0]!=NULL && difftime(time(NULL),SM[i].senders_window.time[0])>=T){
                     for(int j=0;j<SM[i].senders_window.window_size;j++){
 
-                        printf("j= %d\n",j);
+                        printf("i=%d, j= %d\n",i,j);
 
                         if(SM[i].senders_window.send_messages[j].header.number==-1)break;
                         struct sockaddr_in client_addr;
@@ -546,7 +557,7 @@ int main() {
         perror("sem_open\n");
         return 1;
     }
-    sem3=sem_open("/sem3",O_CREAT,0666,1);
+    sem3=sem_open(ne,O_CREAT,0666,1);
     if(sem3==SEM_FAILED){
         perror("sem open\n");
         return 1;
