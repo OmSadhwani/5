@@ -347,8 +347,8 @@ int init() {
         return -1;
     }
 
-    key_t key = 5;
-    int shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 | IPC_CREAT);
+    key = 5;
+    shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 | IPC_CREAT);
     if (shmid == -1) {
         perror("Error creating shared memory for SOCK_INFO");
         return -1;
