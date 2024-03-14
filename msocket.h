@@ -14,8 +14,11 @@
 #include <fcntl.h>
 #include <sys/select.h>
 #include <time.h>
+#include <sys/stat.h>
 
 #define MAX_MTP_SOCKETS 25
+#define SOCK_MTP 3 // Custom socket type for MTP
+#define ENOTBOUND 177
 // Define a time period using timespec structure
 #include <time.h>
 #define T 2
@@ -46,6 +49,7 @@ struct message_receive{
 struct swnd{
         int window_size; // Window size
         time_t time[10];
+        int is_sent[10];
         struct message_send send_messages[10]; // Sequence numbers of messages sent but not acknowledged
         int next_sequence_number;
         int index_to_write;
@@ -81,3 +85,4 @@ struct SOCK_INFO {
 int m_socket(int domain, int type, int protocol);
 int m_bind(int sockfd,char source_ip[50],unsigned short source_port,char dest_ip[50],unsigned short dest_port);
 int m_sendto(int sockfd, const void* data, int len, int flags, const struct sockaddr *servaddr, socklen_t addrlen );
+int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);

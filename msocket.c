@@ -1,7 +1,7 @@
 
 #define MAX_MTP_SOCKETS 25
-#define SOCK_MTP 3 // Custom socket type for MTP
-#define ENOTBOUND 177
+
+
 
 // Assume MTPSocketInfo struct is defined in mtp_socket.h
 #include "msocket.h"
@@ -40,8 +40,10 @@ int m_socket(int domain, int type, int protocol) {
       
         return -1;
     }
+    sem_t* sem3= sem_open("/sem3",0);
+    sem_wait(sem3);
   
-
+    printf("hello\n");
     // Find a free entry in shared memory
     int free_entry_index = -1;
     for (int i = 0; i < MAX_MTP_SOCKETS; i++) {
@@ -57,6 +59,7 @@ int m_socket(int domain, int type, int protocol) {
     }
     sem_t* sem1=sem_open("/semaphore1",0);
     sem_t* sem2= sem_open("/semaphore2",0);
+    printf("hello1\n");
      // Signal on Sem1
 
     sem_post(sem1);
@@ -73,18 +76,21 @@ int m_socket(int domain, int type, int protocol) {
         return -1;
     }
 
+
     // Initialize the shared memory entry for the new MTP socket
     SM[free_entry_index].is_allocated = 1; // Mark the socket as allocated
     SM[free_entry_index].udp_socket_id = sock_info->sock_id;
     SM[free_entry_index].process_id=getpid();
-
+    printf("idx:%d, socket:%d\n", free_entry_index, SM[free_entry_index].udp_socket_id);
     sock_info->sock_id = 0;
     strcpy(sock_info->IP, "");
     sock_info->port = 0;
     sock_info->err_ = 0;
 
+
     
     // Initialize other fields as needed
+    sem_post(sem3);
     if(shmdt(SM)==-1){
         return -1;
     }
@@ -93,11 +99,12 @@ int m_socket(int domain, int type, int protocol) {
     }
     sem_close(sem1);
     sem_close(sem2);
-    printf("mtp socket creation succesfull\n");
+    sem_close(sem3);
 
+    printf("mtp socket creation succesfull\n");
     return free_entry_index;
 }
-
+// int err = m_bind(sockfd, htonl(INADDR_ANY), htons(10010), inet_addr("127.0.0.1"), htons(10020));
 int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest_ip[50], unsigned short dest_port) {
 
     
@@ -124,6 +131,7 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
     }
     struct SOCK_INFO *sock_info;
     // Attach shared memory segment
+
     sock_info = (struct SOCK_INFO *)shmat(shmid, NULL, 0);
     if (sock_info == (struct SOCK_INFO *)(-1)) {
        
@@ -143,14 +151,19 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
     sock_info->port=source_port;
     sock_info->sock_id=SM[sockfd].udp_socket_id;
     strcpy(sock_info->IP,source_ip);
+    printf("hellop\n");
+    printf("%d\n",sock_info->sock_id);
 
     sem_t* sem1=sem_open("/semaphore1",0);
-    sem_t* sem2= sem_open("/semaphore",0);
+    sem_t* sem2= sem_open("/semaphore2",0);
+    sem_t* sem3= sem_open("/sem3",0);
+
      // Signal on Sem1
     sem_post(sem1);
 
     // Wait on Sem2
     sem_wait(sem2);
+    printf("hello\n");
 
     if(sock_info->sock_id==-1){
         errno=sock_info->err_;
@@ -162,7 +175,7 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
     }
 
 
-    
+    sem_wait(sem3);
     strcpy(SM[sockfd].other_end_ip,dest_ip);
     SM[sockfd].other_end_port = dest_port;
 
@@ -171,6 +184,8 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
     strcpy(sock_info->IP, "");
     sock_info->port = 0;
     sock_info->err_ = 0;
+
+    sem_post(sem3);
     // Update SM with destination IP and destination port
     if(shmdt(SM)==-1){
         return -1;
@@ -180,10 +195,10 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
     }
     sem_close(sem1);
     sem_close(sem2);
+    sem_close(sem3);
 
  
     
-    printf("hello\n");
 
     return 0;
 }
@@ -217,11 +232,12 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
         return -1;
     }
 
-    sem_t* sem3= sem_open("/semaphore3",0);
-
+    sem_t* sem3= sem_open("/sem3",0);
+    printf("wait1\n");
     if(sem_wait(sem3)==-1){
         return -1;
     }
+    printf("wait1\n");
     struct sockaddr_in *ipv4 = (struct sockaddr_in *)servaddr;
 
     char ip[50];
@@ -279,6 +295,7 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
     }
 
 
+    SM[sockfd].senders_window.is_sent[SM[sockfd].senders_window.index_to_write]=0;
     SM[sockfd].senders_window.index_to_write++;
 
     if(sem_post(sem3)==-1){
@@ -289,11 +306,11 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
         return -1;
     }
     
-    sem_close(sem3);
+    
 
 
 
-    return 0;
+    return len;
 }
 
 
@@ -318,7 +335,7 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
         return -1;
     }
 
-    sem_t* sem3= sem_open("/semaphore3",0);
+    sem_t* sem3= sem_open("/sem3",0);
 
     if(sem_wait(sem3)==-1){
         return -1;
@@ -343,6 +360,7 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
     if(SM[sockfd].receivers_window.next_sequence_number==0){
         SM[sockfd].receivers_window.next_sequence_number=1;
     }
+   
 
     // Set the source address if provided
     if (src_addr != NULL) {
@@ -364,6 +382,7 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
             memset(SM[sockfd].receivers_window.receive_messages[j].data,'\0',sizeof((SM[sockfd].receivers_window.receive_messages[j].data)));
             strcpy(SM[sockfd].receivers_window.receive_messages[j].data,SM[sockfd].receivers_window.receive_messages[j+1].data);
             SM[sockfd].receivers_window.receive_messages[j].num=SM[sockfd].receivers_window.receive_messages[j+1].num;
+            
         }
     }
     SM[sockfd].receivers_window.receive_messages[4].num=-1;

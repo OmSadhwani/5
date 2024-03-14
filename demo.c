@@ -4,10 +4,87 @@
 
 
 sem_t *sem1, *sem2,*sem3;
-
-
-
+struct MTPSocketInfo *SM;
 struct SOCK_INFO *sock_info;
+
+void signal_handler(int signum) {
+    printf("\nReceived Ctrl+C. Detaching shared memory and quitting.\n");
+    // Detach the shared memory segments
+    if (shmdt(SM) == -1) {
+        perror("shmdt");
+        exit(EXIT_FAILURE);
+    }
+    if (shmdt(sock_info) == -1) {
+        perror("shmdt");
+        exit(EXIT_FAILURE);
+    }
+    // Destroy the semaphores
+    sem_destroy(sem1);
+    sem_destroy(sem2);
+    sem_destroy(sem3);
+    printf("Shared memory and semaphores detached and destroyed successfully.\n");
+    exit(EXIT_SUCCESS);
+}
+
+
+
+
+
+void get_ip_port(const struct sockaddr_in *client_addr, char *ip_str, size_t ip_str_len, unsigned short *port) {
+    // Get the IP address
+    inet_ntop(AF_INET, &(client_addr->sin_addr), ip_str, ip_str_len);
+
+    // Get the port
+    *port = ntohs(client_addr->sin_port);
+}
+
+void send_ack(int i){
+    key_t key = 6;
+    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
+    if (shmid == -1) {
+        perror("Error creating shared memory");
+        exit(1);
+    }
+
+    // Attach shared memory segment
+    SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
+    if (SM == (struct MTPSocketInfo *)(-1)) {
+        perror("shmat");
+        exit(1);
+    }
+    sem_wait(sem3);
+
+    int number= SM[i].receivers_window.next_sequence_number;
+    for(int j=0;j<5;j++){
+        if(SM[i].receivers_window.receive_messages[j].num==-1)break;
+        else {
+            number++;
+            number%=16;
+            if(number==0)number=1;
+        }
+    }
+    
+    struct message_send sen_msg;
+    sen_msg.header.is_ack=1;
+    sen_msg.header.number=number;
+    
+    sprintf(sen_msg.data, "%d", SM[i].receivers_window.window_size);
+
+    struct sockaddr_in client_addr;
+    int client_addrlen=sizeof(client_addr);
+    inet_pton(AF_INET, SM[i].other_end_ip, &(client_addr.sin_addr));
+
+    // Set the port
+    client_addr.sin_port = htons(SM[i].other_end_port);
+
+    // Set address family
+    client_addr.sin_family = AF_INET;
+    if (sendto(SM[i].udp_socket_id, &sen_msg, sizeof(sen_msg), 0, (struct sockaddr *)&client_addr, client_addrlen) == -1) {
+        perror("sendto failed");
+            // Handle error
+    }
+    sem_post(sem3);
+}
 
 
 void *receiver_thread(void *arg) {
@@ -16,24 +93,25 @@ void *receiver_thread(void *arg) {
     int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
     if (shmid == -1) {
         perror("Error creating shared memory");
-        return -1;
+        exit(1);
     }
 
     // Attach shared memory segment
-    struct MTPSocketInfo *SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
+    SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
     if (SM == (struct MTPSocketInfo *)(-1)) {
         perror("shmat");
         exit(1);
     }
     struct timeval timeout;
-    timeout.tv_sec = T;          // seconds
+    timeout.tv_sec = 8;          // seconds
     timeout.tv_usec = 0;    // microseconds
     
     fd_set readfds;
     FD_ZERO(&readfds);
     int mx=0;
-    sem_t* sem3= sem_open("/semaphore3",0);
+    
     sem_wait(sem3);
+    printf("hhh\n");
     for (int i = 0; i < MAX_MTP_SOCKETS; i++) {
             // If socket descriptor is valid, add to read list
             if (SM[i].is_allocated && SM[i].udp_socket_id > 0) {
@@ -53,11 +131,14 @@ void *receiver_thread(void *arg) {
         int activity = select(mx + 1, &readfds, NULL, NULL, &timeout);
 
         if(activity<0){
-            perror(select);
+            // perror(select);
+            printf("select error\n");
             continue;
         }
         if(activity>0){
             sem_wait(sem3);
+
+            printf("detected\n");
             for (int i = 0; i < MAX_MTP_SOCKETS; i++) {
                 if(SM[i].is_allocated==0 || SM[i].udp_socket_id<0)continue;
                 int sd = SM[i].udp_socket_id;
@@ -70,10 +151,12 @@ void *receiver_thread(void *arg) {
 
                     recvfrom(sd, &msg, sizeof(msg), 0, (struct sockaddr *)&client_addr, &client_addrlen);
 
-                    char ip_address[50] = inet_ntoa(client_addr.sin_addr);
+                    char ip_address[50] ;
 
                  
-                    unsigned short port_number = ntohs(client_addr.sin_port);
+                    unsigned short port_number;
+
+                    get_ip_port(&client_addr, ip_address, sizeof(ip_address), &port_number);
 
                     if(port_number!=SM[i].other_end_port || strcmp(ip_address,SM[i].other_end_ip)!=0){
                         continue;
@@ -117,56 +200,60 @@ void *receiver_thread(void *arg) {
                             continue;
                         }
                         else if(flag==1 && SM[i].receivers_window.receive_messages[index].num!=-1){
-                            struct message_send sen_msg;
-                            sen_msg.header.is_ack=1;
-                            int number= SM[i].receivers_window.next_sequence_number;
-                            for(int j=0;j<5;j++){
-                                if(SM[i].receivers_window.receive_messages[j].num==-1)break;
-                                else {
-                                    number++;
-                                    number%=16;
-                                    if(number==0)number=1;
-                                }
-                            }
-                            sen_msg.header.number=number;
+                            // struct message_send sen_msg;
+                            // sen_msg.header.is_ack=1;
+                            // int number= SM[i].receivers_window.next_sequence_number;
+                            // for(int j=0;j<5;j++){
+                            //     if(SM[i].receivers_window.receive_messages[j].num==-1)break;
+                            //     else {
+                            //         number++;
+                            //         number%=16;
+                            //         if(number==0)number=1;
+                            //     }
+                            // }
+                            // sen_msg.header.number=number;
                             
-                            sprintf(sen_msg.data, "%d", SM[i].receivers_window.window_size);
+                            // sprintf(sen_msg.data, "%d", SM[i].receivers_window.window_size);
                             
-                            if (sendto(SM[i].udp_socket_id, &sen_msg, sizeof(sen_msg), 0, (struct sockaddr *)&client_addr, client_addrlen) == -1) {
-                                perror("sendto failed");
-                                    // Handle error
-                            }
+                            // if (sendto(SM[i].udp_socket_id, &sen_msg, sizeof(sen_msg), 0, (struct sockaddr *)&client_addr, client_addrlen) == -1) {
+                            //     perror("sendto failed");
+                            //         // Handle error
+                            // }
+                            send_ack(i);
                             continue;
                         }
                         struct message_receive m;
                         strcpy(m.data,msg.data);
                         m.num=msg.header.number;
                         SM[i].receivers_window.receive_messages[index]=m;
+                        SM[i].receivers_window.receive_messages[index].num=m.num;
                         
                         SM[i].receivers_window.window_size--;
                         if(SM[i].receivers_window.window_size==0){
                             SM[i].receivers_window.nospace=1;
                         }
-                        int number= SM[i].receivers_window.next_sequence_number;
-                        for(int j=0;j<5;j++){
-                            if(SM[i].receivers_window.receive_messages[j].num==-1)break;
-                            else {
-                                number++;
-                                number%=16;
-                                if(number==0)number=1;
-                            }
-                        }
+                        // int number= SM[i].receivers_window.next_sequence_number;
+                        // for(int j=0;j<5;j++){
+                        //     if(SM[i].receivers_window.receive_messages[j].num==-1)break;
+                        //     else {
+                        //         number++;
+                        //         number%=16;
+                        //         if(number==0)number=1;
+                        //     }
+                        // }
                         
-                        struct message_send sen_msg;
-                        sen_msg.header.is_ack=1;
-                        sen_msg.header.number=number;
+                        // struct message_send sen_msg;
+                        // sen_msg.header.is_ack=1;
+                        // sen_msg.header.number=number;
                         
-                        sprintf(sen_msg.data, "%d", SM[i].receivers_window.window_size);
+                        // sprintf(sen_msg.data, "%d", SM[i].receivers_window.window_size);
                         
-                        if (sendto(SM[i].udp_socket_id, &sen_msg, sizeof(sen_msg), 0, (struct sockaddr *)&client_addr, client_addrlen) == -1) {
-                            perror("sendto failed");
-                                // Handle error
-                        }
+                        // if (sendto(SM[i].udp_socket_id, &sen_msg, sizeof(sen_msg), 0, (struct sockaddr *)&client_addr, client_addrlen) == -1) {
+                        //     perror("sendto failed");
+                        //         // Handle error
+                        // }
+
+                        send_ack(i);
 
 
 
@@ -193,13 +280,19 @@ void *receiver_thread(void *arg) {
                         index++;
                         for(int j=0;j<index;j++){
                             SM[i].senders_window.send_messages[j].header.number=-1;
+                            SM[i].senders_window.time[j]=NULL;
                             memset(SM[i].senders_window.send_messages[j].data,'\0',sizeof(SM[i].senders_window.send_messages[j].data));
                         }
                         int j=0;
                         while(index<10){
                             strcpy(SM[i].senders_window.send_messages[j].data,SM[i].senders_window.send_messages[index].data);
                             memset(SM[i].senders_window.send_messages[index].data,'\0',sizeof(SM[i].senders_window.send_messages[index].data));
+                            SM[i].senders_window.send_messages[j].header.is_ack=SM[i].senders_window.send_messages[index].header.is_ack;
+                            SM[i].senders_window.send_messages[j].header.number=SM[i].senders_window.send_messages[index].header.number;
+                            SM[i].senders_window.time[j]=SM[i].senders_window.time[index];
                             SM[i].senders_window.send_messages[index].header.number=-1;
+                            SM[i].senders_window.time[index]=NULL;
+
                             index++;
                             j++;
                         }
@@ -215,11 +308,40 @@ void *receiver_thread(void *arg) {
             FD_ZERO(&readfds);
             timeout.tv_sec=T;
             timeout.tv_usec=0;
+            sem_wait(sem3);
             for(int i=0;i<25;i++){
                 if(SM[i].is_allocated && SM[i].udp_socket_id>0){
                     FD_SET(SM[i].udp_socket_id,&readfds);
+                    printf("%d added to the set\n",SM[i].udp_socket_id);
+                    if(SM[i].receivers_window.nospace==1 && SM[i].receivers_window.window_size>0){
+                        SM[i].receivers_window.nospace=0;
+                        // int number= SM[i].receivers_window.next_sequence_number;
+                        // for(int j=0;j<5;j++){
+                        //     if(SM[i].receivers_window.receive_messages[j].num==-1)break;
+                        //     else {
+                        //         number++;
+                        //         number%=16;
+                        //         if(number==0)number=1;
+                        //     }
+                        // }
+                        
+                        // struct message_send sen_msg;
+                        // sen_msg.header.is_ack=1;
+                        // sen_msg.header.number=number;
+                        
+                        // sprintf(sen_msg.data, "%d", SM[i].receivers_window.window_size);
+                        // struct sockaddr_in client_addr;
+                        // int client_addrlen=sizeof(client_addr);
+                        // if (sendto(SM[i].udp_socket_id, &sen_msg, sizeof(sen_msg), 0, (struct sockaddr *)&client_addr, client_addrlen) == -1) {
+                        //     perror("sendto failed");
+                        //         // Handle error
+                        // }
+                        send_ack(i);
+
+                    }
                 }   
             }
+            sem_post(sem3);
         }
 
 
@@ -233,52 +355,103 @@ void *sender_thread(void *arg) {
     int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
     if (shmid == -1) {
         perror("Error creating shared memory");
-        return -1;
+        exit(1);
     }
 
     // Attach shared memory segment
-    struct MTPSocketInfo *SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
+    SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
     if (SM == (struct MTPSocketInfo *)(-1)) {
         perror("shmat");
         exit(1);
     }
-    sem_t* sem3= sem_open("/semaphore3",0);
+    
     while (1) {
         // Sleep for some time less than T/2
         sleep(T / 4);
 
         sem_wait(sem3);
+
         // Iterate over MTP sockets
         for (int i = 0; i < MAX_MTP_SOCKETS; i++) {
             // Check if MTP socket is active
             if (SM[i].is_allocated && SM[i].udp_socket_id>=0) {
                 // Check message timeout for this MTP socket
                 int flag=0;
-                for(int j=0;j<10;j++){
-                    time_t current_time;
-                    // Get the current time
-                    current_time = time(NULL);
-                    if(SM[i].senders_window.time[j]==NULL){
-                        continue;
-                    }
-                    else if(SM[i].senders_window.time[j]-current_time>T){
-                        flag=1;
-                        for(int k=0;k<SM[i].senders_window.window_size;k++){
+                // printf("helloooo\n");
+                if(SM[i].senders_window.send_messages[0].header.number==-1)continue;
+                // printf("%d here\n",i);
+                if(SM[i].senders_window.time[0]!=NULL && difftime(time(NULL),SM[i].senders_window.time[0])>=T){
+                    for(int j=0;j<SM[i].senders_window.window_size;j++){
 
-                            current_time = time(NULL);
-                            sendto(SM[i].udp_socket_id,SM[i].senders_window.send_messages[k].data,sizeof(SM[i].senders_window.send_messages[k].data),0,SM[i].other_end_ip,sizeof(SM[i].other_end_ip));
-                            SM[i].senders_window.time[k]=current_time;
+                        printf("j= %d\n",j);
+
+                        if(SM[i].senders_window.send_messages[j].header.number==-1)break;
+                        struct sockaddr_in client_addr;
+                        int client_addrlen=sizeof(client_addr);
+                        inet_pton(AF_INET, SM[i].other_end_ip, &(client_addr.sin_addr));
+
+                        // Set the port
+                        client_addr.sin_port = htons(SM[i].other_end_port);
+
+                        // Set address family
+                        client_addr.sin_family = AF_INET;
+                        if (sendto(SM[i].udp_socket_id, &SM[i].senders_window.send_messages[j], sizeof(SM[i].senders_window.send_messages[j]), 0, (struct sockaddr *)&client_addr, client_addrlen) == -1) {
+                            perror("sendto failed");
+                                // Handle error
                         }
+                        printf("message sent to %d\n",i);
+                        SM[i].senders_window.time[j]=time(NULL);
+                        
                     }
                 }
-                if(!flag){
-                    for(int k=0;k<SM[i].senders_window.window_size;k++){
-                            sendto(SM[i].udp_socket_id,SM[i].senders_window.send_messages[k].data,sizeof(SM[i].senders_window.send_messages[k].data),0,SM[i].other_end_ip,sizeof(SM[i].other_end_ip));
-                            time_t current_time;
-                            current_time = time(NULL);
-                            SM[i].senders_window.time[k]=current_time;
+                for(int j=0;j<SM[i].senders_window.window_size;j++){
+                    // printf("jsecond= %d\n",j);
+                    if(SM[i].senders_window.send_messages[j].header.number==-1)break;
+                    if(SM[i].senders_window.send_messages[j].header.number!=-1 && SM[i].senders_window.time[j]==NULL){
+                        struct sockaddr_in client_addr;
+                        int client_addrlen=sizeof(client_addr);
+                        inet_pton(AF_INET, SM[i].other_end_ip, &(client_addr.sin_addr));
+
+                        // Set the port
+                        client_addr.sin_port = htons(SM[i].other_end_port);
+
+                        // Set address family
+                        client_addr.sin_family = AF_INET;
+                        printf("%d \n",SM[i].udp_socket_id);
+                        if (sendto(SM[i].udp_socket_id, &SM[i].senders_window.send_messages[j], sizeof(SM[i].senders_window.send_messages[j]), 0, (struct sockaddr *)&client_addr, client_addrlen) == -1) {
+                            perror("sendto failed");
+                                // Handle error
                         }
+                        printf("message sent to %d\n",i);
+                        SM[i].senders_window.time[j]=time(NULL);
+                    }
                 }
+
+                // for(int j=0;j<10;j++){
+                //     time_t current_time;
+                //     // Get the current time
+                //     current_time = time(NULL);
+                //     if(SM[i].senders_window.time[j]==NULL){
+                //         continue;
+                //     }
+                //     else if(SM[i].senders_window.time[j]-current_time>T){
+                //         flag=1;
+                //         for(int k=0;k<SM[i].senders_window.window_size;k++){
+
+                //             current_time = time(NULL);
+                //             sendto(SM[i].udp_socket_id,SM[i].senders_window.send_messages[k].data,sizeof(SM[i].senders_window.send_messages[k].data),0,SM[i].other_end_ip,sizeof(SM[i].other_end_ip));
+                //             SM[i].senders_window.time[k]=current_time;
+                //         }
+                //     }
+                // }
+                // if(!flag){
+                //     for(int k=0;k<SM[i].senders_window.window_size;k++){
+                //             sendto(SM[i].udp_socket_id,SM[i].senders_window.send_messages[k].data,sizeof(SM[i].senders_window.send_messages[k].data),0,SM[i].other_end_ip,sizeof(SM[i].other_end_ip));
+                //             time_t current_time;
+                //             current_time = time(NULL);
+                //             SM[i].senders_window.time[k]=current_time;
+                //         }
+                // }
             }
         }
         sem_post(sem3);
@@ -292,7 +465,7 @@ void *garbage_collector(void *arg) {
     return NULL;
 }
 
-int init() {
+int main() {
     // Create shared memory
     key_t key = 6;
     int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
@@ -302,12 +475,11 @@ int init() {
     }
 
     // Attach shared memory segment
-    struct MTPSocketInfo *SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
+    SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
     if (SM == (struct MTPSocketInfo *)(-1)) {
         perror("shmat");
         exit(1);
     }
-
     
     for (int i = 0; i < MAX_MTP_SOCKETS; i++) {
         SM[i].is_allocated = 0; // Mark all sockets as free
@@ -316,17 +488,71 @@ int init() {
         SM[i].receivers_window.window_size=5;
         SM[i].senders_window.window_size=5;
         SM[i].receivers_window.nospace=0;
+        SM[i].senders_window.index_to_write=0;
         for(int j=0;j<10;j++){
             if(j<5){
                 SM[i].receivers_window.receive_messages[j].num=-1;
             }
             SM[i].senders_window.send_messages[j].header.number=-1;
             SM[i].senders_window.time[j]=NULL;
+            SM[i].senders_window.is_sent[j]=0;
         }
         // Initialize other fields as necessary
     }
 
-    // Start receiver thread
+    
+
+    // Start garbage collector thread
+    // pthread_t garbage_collector_tid;
+    // if (pthread_create(&garbage_collector_tid, NULL, garbage_collector, NULL) != 0) {
+    //     perror("Error creating garbage collector thread");
+    //     return -1;
+    // }
+
+    key = 5;
+    shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 | IPC_CREAT);
+    if (shmid == -1) {
+        perror("Error creating shared memory for SOCK_INFO\n");
+        return -1;
+    }
+
+    // Attach shared memory segment
+    printf("hello\n");
+    sock_info = (struct SOCK_INFO *)shmat(shmid, NULL, 0);
+    if (sock_info == (struct SOCK_INFO *)(-1)) {
+        perror("shmat\n");
+        exit(1);
+    }
+
+    // Initialize SOCK_INFO
+    sock_info->sock_id = 0;
+    strcpy(sock_info->IP, "");
+    sock_info->port = 0;
+    sock_info->err_ = 0;
+
+
+    printf("hi\n");
+    // sem1 = sem_open("/semaphore1", O_CREAT, 0666, 0);
+    sem1 = sem_open("/semaphore1", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH, 0);
+
+        printf("hii\n");
+    if (sem1 == SEM_FAILED) {
+        perror("sem_open\n");
+        return 1;
+    }
+
+    sem2 = sem_open("/semaphore2", O_CREAT, 0666, 0);
+    if (sem2 == SEM_FAILED) {
+        perror("sem_open\n");
+        return 1;
+    }
+    sem3=sem_open("/sem3",O_CREAT,0666,1);
+    if(sem3==SEM_FAILED){
+        perror("sem open\n");
+        return 1;
+    }
+
+
     pthread_t receiver_tid;
     if (pthread_create(&receiver_tid, NULL, receiver_thread, NULL) != 0) {
         perror("Error creating receiver thread");
@@ -340,52 +566,6 @@ int init() {
         return -1;
     }
 
-    // Start garbage collector thread
-    pthread_t garbage_collector_tid;
-    if (pthread_create(&garbage_collector_tid, NULL, garbage_collector, NULL) != 0) {
-        perror("Error creating garbage collector thread");
-        return -1;
-    }
-
-    key_t key = 5;
-    int shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 | IPC_CREAT);
-    if (shmid == -1) {
-        perror("Error creating shared memory for SOCK_INFO");
-        return -1;
-    }
-
-    // Attach shared memory segment
-    sock_info = (struct SOCK_INFO *)shmat(shmid, NULL, 0);
-    if (sock_info == (struct SOCK_INFO *)(-1)) {
-        perror("shmat");
-        exit(1);
-    }
-
-    // Initialize SOCK_INFO
-    sock_info->sock_id = 0;
-    strcpy(sock_info->IP, "");
-    sock_info->port = 0;
-    sock_info->err_ = 0;
-
-
-    sem1 = sem_open("/semaphore1", O_CREAT, 0666, 0);
-    if (sem1 == SEM_FAILED) {
-        perror("sem_open");
-        return 1;
-    }
-
-    sem2 = sem_open("/semaphore2", O_CREAT, 0666, 0);
-    if (sem2 == SEM_FAILED) {
-        perror("sem_open");
-        return 1;
-    }
-    sem3=sem_open("/semaphore3",O_CREAT,0666,1);
-    if(sem3==SEM_FAILED){
-        perror("sem open");
-        return 1;
-    }
-
-
     // Main thread waits for m_socket() or m_bind() call
     while (1) {
         sem_wait(sem1); // Wait for semaphore signal
@@ -394,6 +574,7 @@ int init() {
         if (sock_info->sock_id == 0 && strcmp(sock_info->IP, "") == 0 && sock_info->port == 0) {
             // m_socket() call
             sock_info->sock_id = socket(AF_INET, SOCK_DGRAM, 0);
+            printf("%d hello\n",sock_info->sock_id);
             if (sock_info->sock_id == -1) {
                 sock_info->err_ = errno;
             }
@@ -404,10 +585,12 @@ int init() {
             bind_addr.sin_family = AF_INET;
             bind_addr.sin_port = htons(sock_info->port);
             bind_addr.sin_addr.s_addr = inet_addr(sock_info->IP);
+            printf("here\n");
             if (bind(sock_info->sock_id, (struct sockaddr *)&bind_addr, sizeof(bind_addr)) == -1) {
                 sock_info->err_ = errno;
                 sock_info->sock_id = -1; // Reset sock_id if bind fails
             }
+            printf("hello5\n");
         }
 
         sem_post(sem2); // Signal completion
