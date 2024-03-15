@@ -1,0 +1,48 @@
+CC = gcc
+CFLAGS = -Wall -Wextra -I. -L.
+SRC_MSOCKET = msocket.c
+OBJ_MSOCKET = $(SRC_MSOCKET:.c=.o)
+LIB_MSOCKET = libmsocket.a
+
+SRC_INITMSOCKET = initsocket.c
+OBJ_INITMSOCKET = $(SRC_INITMSOCKET:.c=.o)
+TARGET_INITMSOCKET = initmsocket
+
+SRC_USER1 = user1.c
+OBJ_USER1 = $(SRC_USER1:.c=.o)
+TARGET_USER1 = user1
+
+SRC_USER2 = user2.c
+OBJ_USER2 = $(SRC_USER2:.c=.o)
+TARGET_USER2 = user2
+
+LIBS = -lmsocket
+
+all: $(LIB_MSOCKET) $(TARGET_INITMSOCKET) $(TARGET_USER1) $(TARGET_USER2)
+
+$(LIB_MSOCKET): $(OBJ_MSOCKET)
+		ar rcs $@ $^
+
+$(TARGET_INITMSOCKET): $(OBJ_INITMSOCKET) $(LIB_MSOCKET)
+		$(CC) $(CFLAGS) -o $@ $^
+
+$(TARGET_USER1): $(OBJ_USER1) $(LIB_MSOCKET)
+		$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
+
+$(TARGET_USER2): $(OBJ_USER2) $(LIB_MSOCKET)
+		$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
+
+%.o: %.c
+		$(CC) $(CFLAGS) -c -o $@ $<
+
+clean:
+		rm -f $(OBJ_MSOCKET) $(LIB_MSOCKET) $(OBJ_INITMSOCKET) $(TARGET_INITMSOCKET) $(OBJ_USER1) $(TARGET_USER1) $(OBJ_USER2) $(TARGET_USER2)
+
+run_initmsocket: $(TARGET_INITMSOCKET)
+		./$(TARGET_INITMSOCKET)
+
+run_user1: $(TARGET_USER1)
+		./$(TARGET_USER1)
+
+run_user2: $(TARGET_USER2)
+		./$(TARGET_USER2)
