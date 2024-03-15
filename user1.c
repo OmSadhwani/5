@@ -22,7 +22,7 @@ int main(){
     sleep(5);
     printf("here\n");
     char buff[1024];
-    for(int i=0; i<5; i++){
+    for(int i=0; i<25; i++){
         memset(buff, 0, sizeof(buff));
         sprintf(buff, "this is message no. %d from user 1", i);
         int sends = m_sendto(sockfd, buff, strlen(buff)+1, 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));

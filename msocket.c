@@ -216,19 +216,20 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
     key_t key = 6;
     int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
     if (shmid == -1) {
-        
+        perror("shmget");
         return -1;
     }
-
+    printf("hi\n");
     // Attach shared memory segment
     struct MTPSocketInfo *SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
     if (SM == (struct MTPSocketInfo *)(-1)) {
-     
+        perror("shmat");
         exit(1);
     }
-
+    printf("hi\n");
     if (sockfd < 0 || sockfd >= MAX_MTP_SOCKETS || SM[sockfd].is_allocated==0) {
         errno = EBADF; // Bad file descriptor
+        
         return -1;
     }
 
@@ -387,7 +388,7 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
     }
     SM[sockfd].receivers_window.receive_messages[4].num=-1;
     memset(SM[sockfd].receivers_window.receive_messages[4].data,'\0',sizeof((SM[sockfd].receivers_window.receive_messages[4].data)));
-
+    SM[sockfd].receivers_window.window_size++;
 
     if(sem_post(sem3)==-1){
         return -1;

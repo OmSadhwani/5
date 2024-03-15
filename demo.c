@@ -71,7 +71,7 @@ void send_ack(int i){
     
     struct message_send sen_msg;
     sen_msg.header.is_ack=1;
-    sen_msg.header.number=number;
+    sen_msg.header.number=number-1;
     
     sprintf(sen_msg.data, "%d", SM[i].receivers_window.window_size);
 
@@ -270,7 +270,11 @@ void *receiver_thread(void *arg) {
                         // Example code:
                         // send_ack(sd, &client_addr, client_addrlen, received_msg.sequence_number);
                     } else {
-                        printf("the message received is ack\n");
+                        printf("the message received is ack for sequence number %d \n",msg.header.number);
+                        printf("The sequence numbers present in the buffer are \n");
+                        for(int k=0;k<5;k++){
+                            printf("%d\n",SM[i].senders_window.send_messages[k].header.number);
+                        }
                         // ACK message received
                         // Update swnd and remove message from sender-side buffer
                         int index=-1;
@@ -305,6 +309,10 @@ void *receiver_thread(void *arg) {
 
                             index++;
                             j++;
+                        }
+                        printf("The sequence numbers present in the buffer are \n");
+                        for(int k=0;k<5;k++){
+                            printf("%d\n",SM[i].senders_window.send_messages[k].header.number);
                         }
                         // Example code:
                         // update_swnd(sd, received_msg.sequence_number);
@@ -378,7 +386,7 @@ void *sender_thread(void *arg) {
     
     while (1) {
         // Sleep for some time less than T/2
-        sleep(T / 4);
+        sleep(T / 2);
 
         sem_wait(sem3);
 
@@ -393,7 +401,11 @@ void *sender_thread(void *arg) {
                 // printf("%d here\n",i);
                 if(SM[i].senders_window.time[0]!=NULL && difftime(time(NULL),SM[i].senders_window.time[0])>=T){
                     for(int j=0;j<SM[i].senders_window.window_size;j++){
-
+                        printf("Time out occured on index %d\n",i);
+                        printf("The sequence numbers present in the buffer are \n");
+                        for(int k=0;k<5;k++){
+                            printf("%d\n",SM[i].senders_window.send_messages[k].header.number);
+                        }
                         printf("i=%d, j= %d\n",i,j);
 
                         if(SM[i].senders_window.send_messages[j].header.number==-1)break;
@@ -433,7 +445,7 @@ void *sender_thread(void *arg) {
                             perror("sendto failed");
                                 // Handle error
                         }
-                        printf("message sent to %d\n",i);
+                        printf("message sent to %d for the first time\n",i);
                         SM[i].senders_window.time[j]=time(NULL);
                     }
                 }
