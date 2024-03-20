@@ -2,7 +2,6 @@
 
 
 
-
 sem_t *sem1, *sem2,*sem3;
 struct MTPSocketInfo *SM;
 struct SOCK_INFO *sock_info;
@@ -89,11 +88,16 @@ void send_ack(int i){
             // Handle error
     }
     
+    
 }
+
+
 
 
 void *receiver_thread(void *arg) {
     // Implementation of receiver thread behavior
+    time_t last_ack_sent[MAX_MTP_SOCKETS]={0};
+    
     key_t key = 6;
     int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
     if (shmid == -1) {
@@ -136,7 +140,7 @@ void *receiver_thread(void *arg) {
         int activity = select(mx + 1, &readfds, NULL, NULL, &timeout);
 
         if(activity<0){
-            // perror(select);
+        
             printf("select error\n");
             continue;
         }
@@ -156,6 +160,10 @@ void *receiver_thread(void *arg) {
                     int client_addrlen=sizeof(client_addr);
 
                     recvfrom(sd, &msg, sizeof(msg), 0, (struct sockaddr *)&client_addr, &client_addrlen);
+                    if(dropMessage(probability)){
+                        printf("Message Dropped\n");
+                        continue;
+                    }
                     printf("message received\n");
                     char ip_address[50] ;
 
@@ -168,13 +176,10 @@ void *receiver_thread(void *arg) {
                         continue;
                     }
 
-                    // Process received message
+                    
                     if (msg.header.is_ack == 0) {
                         printf("the message is of type data\n");
-                        // Data message received
-                        // Store in receiver-side message buffer
-                        // Send ACK message to the sender
-
+    
                         
                         if(SM[i].receivers_window.nospace==1){ //buffer full
                             printf("the buffer is full\n");
@@ -203,32 +208,17 @@ void *receiver_thread(void *arg) {
                         }
 
 
-                        if(flag==0){ // sequence number not in window
+                        if(flag==0){ 
                             printf("%d sequence number not in window\n",msg.header.number);
+                            send_ack(i);
+                            last_ack_sent[i]=time(NULL);
                             continue;
                         }
                         else if(flag==1 && SM[i].receivers_window.receive_messages[index].num!=-1){
                             printf("duplicated message\n");
-                            // struct message_send sen_msg;
-                            // sen_msg.header.is_ack=1;
-                            // int number= SM[i].receivers_window.next_sequence_number;
-                            // for(int j=0;j<5;j++){
-                            //     if(SM[i].receivers_window.receive_messages[j].num==-1)break;
-                            //     else {
-                            //         number++;
-                            //         number%=16;
-                            //         if(number==0)number=1;
-                            //     }
-                            // }
-                            // sen_msg.header.number=number;
                             
-                            // sprintf(sen_msg.data, "%d", SM[i].receivers_window.window_size);
-                            
-                            // if (sendto(SM[i].udp_socket_id, &sen_msg, sizeof(sen_msg), 0, (struct sockaddr *)&client_addr, client_addrlen) == -1) {
-                            //     perror("sendto failed");
-                            //         // Handle error
-                            // }
                             send_ack(i);
+                            last_ack_sent[i]=time(NULL);
                             printf("the ack is sent for duplicated\n");
                             continue;
                         }
@@ -242,41 +232,21 @@ void *receiver_thread(void *arg) {
                         if(SM[i].receivers_window.window_size==0){
                             SM[i].receivers_window.nospace=1;
                         }
-                        // int number= SM[i].receivers_window.next_sequence_number;
-                        // for(int j=0;j<5;j++){
-                        //     if(SM[i].receivers_window.receive_messages[j].num==-1)break;
-                        //     else {
-                        //         number++;
-                        //         number%=16;
-                        //         if(number==0)number=1;
-                        //     }
-                        // }
                         
-                        // struct message_send sen_msg;
-                        // sen_msg.header.is_ack=1;
-                        // sen_msg.header.number=number;
-                        
-                        // sprintf(sen_msg.data, "%d", SM[i].receivers_window.window_size);
-                        
-                        // if (sendto(SM[i].udp_socket_id, &sen_msg, sizeof(sen_msg), 0, (struct sockaddr *)&client_addr, client_addrlen) == -1) {
-                        //     perror("sendto failed");
-                        //         // Handle error
-                        // }
                         printf("sending ack\n");
                         send_ack(i);
                         printf("the ack is sent\n");
+                        last_ack_sent[i]=time(NULL);
 
 
-                        // Example code:
-                        // send_ack(sd, &client_addr, client_addrlen, received_msg.sequence_number);
+
                     } else {
                         printf("the message received is ack for sequence number %d \n",msg.header.number);
                         printf("The sequence numbers present in the buffer are \n");
                         for(int k=0;k<5;k++){
                             printf("%d\n",SM[i].senders_window.send_messages[k].header.number);
                         }
-                        // ACK message received
-                        // Update swnd and remove message from sender-side buffer
+
                         int index=-1;
                         int window_sz= atoi(msg.data);
                         
@@ -292,6 +262,11 @@ void *receiver_thread(void *arg) {
                         }
                         SM[i].senders_window.index_to_write-=(index+1);
                         index++;
+                        printf("the messages in the send buffer of %d are\n",i);
+                        for(int j=0;j<10;j++){
+                            printf("j: \n");
+                            printf("%s \n",SM[i].senders_window.send_messages[j]);
+                        }
                         for(int j=0;j<index;j++){
                             SM[i].senders_window.send_messages[j].header.number=-1;
                             SM[i].senders_window.time[j]=NULL;
@@ -299,6 +274,7 @@ void *receiver_thread(void *arg) {
                         }
                         int j=0;
                         while(index<10){
+                            memset(SM[i].senders_window.send_messages[j].data,'\0',sizeof(SM[i].senders_window.send_messages[j].data));
                             strcpy(SM[i].senders_window.send_messages[j].data,SM[i].senders_window.send_messages[index].data);
                             memset(SM[i].senders_window.send_messages[index].data,'\0',sizeof(SM[i].senders_window.send_messages[index].data));
                             SM[i].senders_window.send_messages[j].header.is_ack=SM[i].senders_window.send_messages[index].header.is_ack;
@@ -314,8 +290,12 @@ void *receiver_thread(void *arg) {
                         for(int k=0;k<5;k++){
                             printf("%d\n",SM[i].senders_window.send_messages[k].header.number);
                         }
-                        // Example code:
-                        // update_swnd(sd, received_msg.sequence_number);
+                        printf("the messages in the send buffer after of %d are\n",i);
+                        for(int j=0;j<10;j++){
+                            printf("j: \n");
+                            printf("%s \n",SM[i].senders_window.send_messages[j]);
+                        }
+                      
                     }
                 }
             }
@@ -332,33 +312,21 @@ void *receiver_thread(void *arg) {
                     FD_SET(SM[i].udp_socket_id,&readfds);
                     mx=max(mx,SM[i].udp_socket_id);
                     printf("%d added to the set\n",SM[i].udp_socket_id);
-                    if(SM[i].receivers_window.nospace==1 && SM[i].receivers_window.window_size>0){
+                    if((SM[i].receivers_window.nospace==1 && SM[i].receivers_window.window_size>0)){
                         SM[i].receivers_window.nospace=0;
-                        // int number= SM[i].receivers_window.next_sequence_number;
-                        // for(int j=0;j<5;j++){
-                        //     if(SM[i].receivers_window.receive_messages[j].num==-1)break;
-                        //     else {
-                        //         number++;
-                        //         number%=16;
-                        //         if(number==0)number=1;
-                        //     }
-                        // }
                         
-                        // struct message_send sen_msg;
-                        // sen_msg.header.is_ack=1;
-                        // sen_msg.header.number=number;
-                        
-                        // sprintf(sen_msg.data, "%d", SM[i].receivers_window.window_size);
-                        // struct sockaddr_in client_addr;
-                        // int client_addrlen=sizeof(client_addr);
-                        // if (sendto(SM[i].udp_socket_id, &sen_msg, sizeof(sen_msg), 0, (struct sockaddr *)&client_addr, client_addrlen) == -1) {
-                        //     perror("sendto failed");
-                        //         // Handle error
-                        // }
                         send_ack(i);
+                        last_ack_sent[i]=time(NULL);
 
                     }
-                }   
+                    if(difftime(time(NULL),last_ack_sent[i])>30){
+                        send_ack(i);
+                        last_ack_sent[i]=time(NULL);
+                    }
+                }  
+                else if(SM[i].is_allocated==0){
+                    SM[i].receivers_window.nospace=0;
+                } 
             }
             sem_post(sem3);
         }
@@ -450,31 +418,7 @@ void *sender_thread(void *arg) {
                     }
                 }
 
-                // for(int j=0;j<10;j++){
-                //     time_t current_time;
-                //     // Get the current time
-                //     current_time = time(NULL);
-                //     if(SM[i].senders_window.time[j]==NULL){
-                //         continue;
-                //     }
-                //     else if(SM[i].senders_window.time[j]-current_time>T){
-                //         flag=1;
-                //         for(int k=0;k<SM[i].senders_window.window_size;k++){
-
-                //             current_time = time(NULL);
-                //             sendto(SM[i].udp_socket_id,SM[i].senders_window.send_messages[k].data,sizeof(SM[i].senders_window.send_messages[k].data),0,SM[i].other_end_ip,sizeof(SM[i].other_end_ip));
-                //             SM[i].senders_window.time[k]=current_time;
-                //         }
-                //     }
-                // }
-                // if(!flag){
-                //     for(int k=0;k<SM[i].senders_window.window_size;k++){
-                //             sendto(SM[i].udp_socket_id,SM[i].senders_window.send_messages[k].data,sizeof(SM[i].senders_window.send_messages[k].data),0,SM[i].other_end_ip,sizeof(SM[i].other_end_ip));
-                //             time_t current_time;
-                //             current_time = time(NULL);
-                //             SM[i].senders_window.time[k]=current_time;
-                //         }
-                // }
+                
             }
         }
         sem_post(sem3);
@@ -484,7 +428,44 @@ void *sender_thread(void *arg) {
 }
 
 void *garbage_collector(void *arg) {
-    // Implementation of garbage collector behavior
+    key_t key = 6;
+    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
+    if (shmid == -1) {
+        perror("Error creating shared memory");
+        return -1;
+    }
+
+    // Attach shared memory segment
+    SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
+    if (SM == (struct MTPSocketInfo *)(-1)) {
+        perror("shmat");
+        exit(1);
+    }
+    sem_t* sem3= sem_open(ne,0);
+    sem_wait(sem3);
+    for(int i=0;i<MAX_MTP_SOCKETS;i++){
+        if(SM[i].is_allocated==-1){
+            SM[i].is_allocated=0;
+            close(SM[i].udp_socket_id);
+            SM[i].is_allocated = 0; // Mark all sockets as free
+            SM[i].senders_window.next_sequence_number=1;
+            SM[i].receivers_window.next_sequence_number=1;
+            SM[i].receivers_window.window_size=5;
+            SM[i].senders_window.window_size=5;
+            SM[i].receivers_window.nospace=0;
+            SM[i].senders_window.index_to_write=0;
+            for(int j=0;j<10;j++){
+                if(j<5){
+                    SM[i].receivers_window.receive_messages[j].num=-1;
+                }
+                SM[i].senders_window.send_messages[j].header.number=-1;
+                SM[i].senders_window.time[j]=NULL;
+                SM[i].senders_window.is_sent[j]=0;
+            }
+           
+        }
+    }
+    sem_post(sem3);
     return NULL;
 }
 
@@ -526,11 +507,11 @@ int main() {
     
 
     // Start garbage collector thread
-    // pthread_t garbage_collector_tid;
-    // if (pthread_create(&garbage_collector_tid, NULL, garbage_collector, NULL) != 0) {
-    //     perror("Error creating garbage collector thread");
-    //     return -1;
-    // }
+    pthread_t garbage_collector_tid;
+    if (pthread_create(&garbage_collector_tid, NULL, garbage_collector, NULL) != 0) {
+        perror("Error creating garbage collector thread");
+        return -1;
+    }
 
     key = 5;
     shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 | IPC_CREAT);

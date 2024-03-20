@@ -1,58 +1,45 @@
+
 #include "msocket.h"
 
 int main(){
-    printf("hi\n");
-    int sockfd = m_socket(AF_INET, SOCK_MTP, 0);
-    printf("socket created %d\n", sockfd);
+    int sockfd = m_socket(AF_INET,SOCK_MTP, 0);
+    printf("hi\n"); 
+    m_bind(sockfd,"127.0.0.1",6000,"127.0.0.1",6001);
+    struct sockaddr_in serv_addr;
+    memset(&serv_addr,0,sizeof(serv_addr));
+    serv_addr.sin_family=AF_INET;
+    serv_addr.sin_port=htons(6001);
+    inet_aton("127.0.0.1",&serv_addr.sin_addr);
+    int len = sizeof(serv_addr);
+    int i=0;
+    while(i<25){
+        int retval=-1;
+        char buffer[1024];
+        memset(buffer,'\0',1024);
+        strcpy(buffer,"Hello there");
+        // Cat i
+        char num[10];
+        memset(num,'\0',sizeof(num));
+        sprintf(num,"%d",i);
+        strcat(buffer,num);
+        while(retval<0){
+        retval = m_sendto(sockfd,buffer,strlen(buffer),0,(struct sockaddr*)&serv_addr,sizeof(serv_addr));
 
-
-    struct sockaddr_in dest_addr;
-    memset(&dest_addr, 0, sizeof(dest_addr));
-    dest_addr.sin_family = AF_INET;
-    dest_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    dest_addr.sin_port = htons(10020);
-    char ip[50];
-    strcpy(ip,"127.0.0.1");
-    unsigned short p1=10010;
-    unsigned short p2=10020;
-    // printf("hello\n");
-    int err = m_bind(sockfd, ip,p1,ip, p2);
-    printf("bind err %d\n", err);
-
-    sleep(5);
-    printf("here\n");
-    char buff[1024];
-    for(int i=0; i<25; i++){
-        memset(buff, 0, sizeof(buff));
-        sprintf(buff, "this is message no. %d from user 1", i);
-        int sends = m_sendto(sockfd, buff, strlen(buff)+1, 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
-        printf("sent: %d\n", sends);
-
-        struct sockaddr_in client_addr;
-        memset(&client_addr, 0, sizeof(client_addr));
-        int addrlen = sizeof(client_addr);
-        memset(buff, 0, sizeof(buff));
-        while(1){
-            sleep(1);
-            int recvs = m_recvfrom(sockfd, buff, sizeof(buff), 0, (struct sockaddr *)&client_addr, &addrlen);
-            if(recvs!=0){
-                printf("recvs:%d\n", recvs);
-                if(recvs>0){
-                    printf("%s\n", buff);
-                    break;
-                }
-                else{
-                    if(errno == ENOMSG) printf("nomsg\n");
-                    if(errno == EBADF) printf("bad file\n");
-                }
-            }
+        }
+        fprintf(stderr, "Sent: %s\n", buffer);
+        i++;
+    }
+    char buffer[1024];
+    while(1){
+        int retval = m_recvfrom(sockfd,buffer,1024,0,(struct sockaddr*)&serv_addr,sizeof(serv_addr));
+        if(retval>0){
+            break;
         }
     }
+    printf("%s\n",buffer);
 
-
-    
-    while(1);
-
+    // int retval = m_sendto(sockfd,"Hello there",11,0,(struct sockaddr*)&serv_addr,sizeof(serv_addr));
+    // fprintf(stderr, "Sent: %s\n", "Hello there");
     return 0;
-
 }
+

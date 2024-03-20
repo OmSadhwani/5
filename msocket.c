@@ -203,11 +203,7 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
     return 0;
 }
 
-// void msg_cpy(struct message* a,struct message* b){
-//     a->is_ack=b->is_ack;
-//     a->number=b->number;
-//     strcpy(a->data,b->data);
-// }
+
 
 
 int m_sendto(int sockfd, const void* data, int len, int flags, const struct sockaddr *servaddr, socklen_t addrlen ) {
@@ -219,26 +215,25 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
         perror("shmget");
         return -1;
     }
-    printf("hi\n");
-    // Attach shared memory segment
+    
     struct MTPSocketInfo *SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
     if (SM == (struct MTPSocketInfo *)(-1)) {
         perror("shmat");
         exit(1);
     }
-    printf("hi\n");
+
     if (sockfd < 0 || sockfd >= MAX_MTP_SOCKETS || SM[sockfd].is_allocated==0) {
-        errno = EBADF; // Bad file descriptor
+        errno = EBADF; 
         
         return -1;
     }
 
     sem_t* sem3= sem_open(ne,0);
-    printf("wait1\n");
+    
     if(sem_wait(sem3)==-1){
         return -1;
     }
-    printf("wait1\n");
+    
     struct sockaddr_in *ipv4 = (struct sockaddr_in *)servaddr;
 
     char ip[50];
@@ -258,16 +253,16 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
     
 
     if (flag == 0) {
-        // Destination IP/Port doesn't match any bounded IP/Port
+        
         errno = ENOTBOUND;
         sem_post(sem3);
         return -1;
     }
 
 
-    // Check if there is space in the send buffer
+   
     if (SM[sockfd].senders_window.index_to_write == 10) {
-        // Send buffer is full
+        
         errno = ENOBUFS;
         sem_post(sem3);
         return -1;
@@ -277,7 +272,7 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
 
     int idx=SM[sockfd].senders_window.index_to_write;
     SM[sockfd].senders_window.send_messages[idx].header.is_ack=0;
-    // SM[sockfd].senders_window.send_messages[idx].header.time=time(NULL);
+    
     
 
     
@@ -337,7 +332,7 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
     }
 
     sem_t* sem3= sem_open(ne,0);
-
+    // printf("hello in receive \n");
     if(sem_wait(sem3)==-1){
         return -1;
     }
@@ -350,7 +345,7 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
         sem_post(sem3);
         return -1;
     }
-
+    // printf("hello here in recv\n");
 
     // Extract the first message from the receiver-side message buffer
     struct message_receive recv_msg = soc.receivers_window.receive_messages[0];
@@ -361,18 +356,20 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
     if(SM[sockfd].receivers_window.next_sequence_number==0){
         SM[sockfd].receivers_window.next_sequence_number=1;
     }
-   
-
+   // Port of the other end of the MTP socket
+    // printf("idhar\n");
     // Set the source address if provided
     if (src_addr != NULL) {
         // Convert IP address and port to sockaddr structure
         struct sockaddr_in *src_in = (struct sockaddr_in *)src_addr;
         src_in->sin_family = AF_INET;
-        src_in->sin_port = htons(soc.other_end_port);
-        inet_pton(AF_INET, soc.other_end_ip, &(src_in->sin_addr));
-        *addrlen = sizeof(struct sockaddr_in);
+        src_in->sin_port = htons(SM[sockfd].other_end_port);
+        // printf("h\n");
+        inet_pton(AF_INET, SM[sockfd].other_end_ip, &(src_in->sin_addr));
+        // printf("h\n");
+        // *addrlen = sizeof(struct sockaddr_in);
     }
-
+    // printf("here in recv\n");
     for(int j=0;j<4;j++){
         if(SM[sockfd].receivers_window.receive_messages[j+1].num==-1){
             SM[sockfd].receivers_window.receive_messages[j].num=-1;
@@ -386,6 +383,7 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
             
         }
     }
+    // printf("here in recv\n");
     SM[sockfd].receivers_window.receive_messages[4].num=-1;
     memset(SM[sockfd].receivers_window.receive_messages[4].data,'\0',sizeof((SM[sockfd].receivers_window.receive_messages[4].data)));
     SM[sockfd].receivers_window.window_size++;
@@ -394,7 +392,46 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
         return -1;
     }
 
+    printf("receive successful\n");
  
 
     return len; // Return the length of the received message
+}
+
+int dropMessage(float p){
+    
+    float random = (float)((float)(rand()) / (float)RAND_MAX);
+    
+  
+    if (random < p) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+int m_close(int sockfd){
+    key_t key = 6;
+    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
+    if (shmid == -1) {
+        
+        return -1;
+    }
+
+    // Attach shared memory segment
+    struct MTPSocketInfo *SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
+    if (SM == (struct MTPSocketInfo *)(-1)) {
+     
+        exit(1);
+    }
+
+    if (sockfd < 0 || sockfd >= MAX_MTP_SOCKETS || SM[sockfd].is_allocated!=1) {
+        errno = EBADF; // Bad file descriptor
+        return -1;
+    }
+    sem_t* sem3= sem_open(ne,0);
+    sem_wait(sem3);
+    SM[sockfd].is_allocated=-1;
+    sem_post(sem3);
+    return 0;
 }
