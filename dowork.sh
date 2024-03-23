@@ -17,7 +17,7 @@ start_port=6000
 # 6020 <--> 6021
 # 6022 <--> 6023
 
-for ((i=0; i<2; i++))
+for ((i=0; i<4; i++))
 do
     myport=$((start_port + i + i))
     dest_port=$((myport + 1))

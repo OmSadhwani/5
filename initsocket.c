@@ -276,11 +276,11 @@ void *receiver_thread(void *arg) {
                         }
                         SM[i].senders_window.index_to_write-=(index+1);
                         index++;
-                        printf("the messages in the send buffer of %d are\n",i);
-                        for(int j=0;j<10;j++){
-                            printf("j: \n");
-                            printf("%s \n",SM[i].senders_window.send_messages[j]);
-                        }
+                        // printf("the messages in the send buffer of %d are\n",i);
+                        // for(int j=0;j<10;j++){
+                        //     printf("j: \n");
+                        //     printf("%s \n",SM[i].senders_window.send_messages[j]);
+                        // }
                         for(int j=0;j<index;j++){
                             SM[i].senders_window.send_messages[j].header.number=-1;
                             SM[i].senders_window.time[j]=NULL;
@@ -304,11 +304,11 @@ void *receiver_thread(void *arg) {
                         for(int k=0;k<5;k++){
                             printf("%d\n",SM[i].senders_window.send_messages[k].header.number);
                         }
-                        printf("the messages in the send buffer after of %d are\n",i);
-                        for(int j=0;j<10;j++){
-                            printf("j: \n");
-                            printf("%s \n",SM[i].senders_window.send_messages[j]);
-                        }
+                        // printf("the messages in the send buffer after of %d are\n",i);
+                        // for(int j=0;j<10;j++){
+                        //     printf("j: \n");
+                        //     printf("%s \n",SM[i].senders_window.send_messages[j]);
+                        // }
                       
                     }
                 }
@@ -460,8 +460,31 @@ void *garbage_collector(void *arg) {
         exit(1);
     }
     sem_t* sem3= sem_open(ne,0);
+    while(1){
+    sleep(10*T);
     sem_wait(sem3);
     for(int i=0;i<MAX_MTP_SOCKETS;i++){
+        if(SM[i].is_allocated==1){
+            if(kill(SM[i].process_id,0)!=0){
+                SM[i].is_allocated=0;
+                close(SM[i].udp_socket_id);
+                SM[i].is_allocated = 0; // Mark all sockets as free
+                SM[i].senders_window.next_sequence_number=1;
+                SM[i].receivers_window.next_sequence_number=1;
+                SM[i].receivers_window.window_size=5;
+                SM[i].senders_window.window_size=5;
+                SM[i].receivers_window.nospace=0;
+                SM[i].senders_window.index_to_write=0;
+                for(int j=0;j<10;j++){
+                    if(j<5){
+                        SM[i].receivers_window.receive_messages[j].num=-1;
+                    }
+                    SM[i].senders_window.send_messages[j].header.number=-1;
+                    SM[i].senders_window.time[j]=NULL;
+                    SM[i].senders_window.is_sent[j]=0;
+                }
+            }
+        }
         if(SM[i].is_allocated==-1){
             SM[i].is_allocated=0;
             close(SM[i].udp_socket_id);
@@ -482,10 +505,12 @@ void *garbage_collector(void *arg) {
             }
            
         }
+
     }
     sem_post(sem3);
+    }
     shmdt(SM);
-    return NULL;
+    return ;
 }
 
 int main() {
@@ -586,11 +611,11 @@ int main() {
         return -1;
     }
     // Start garbage collector thread
-    // pthread_t garbage_collector_tid;
-    // if (pthread_create(&garbage_collector_tid, NULL, garbage_collector, NULL) != 0) {
-    //     perror("Error creating garbage collector thread");
-    //     return -1;
-    // }
+    pthread_t garbage_collector_tid;
+    if (pthread_create(&garbage_collector_tid, NULL, garbage_collector, NULL) != 0) {
+        perror("Error creating garbage collector thread");
+        return -1;
+    }
 
     // Main thread waits for m_socket() or m_bind() call
 

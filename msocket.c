@@ -6,8 +6,6 @@
 // Assume MTPSocketInfo struct is defined in mtp_socket.h
 #include "msocket.h"
 
-
-
 int m_socket(int domain, int type, int protocol) {
     printf("Reached here\n");
     // Check if the requested socket type is SOCK_MTP
@@ -166,7 +164,7 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
     strcpy(sock_info->IP,source_ip);
     printf("hellop\n");
     printf("%d\n",sock_info->sock_id);
-    sem_post(sem3);
+    
 
     sem_t* sem1=sem_open("/semaphore1",0);
     sem_t* sem2= sem_open("/semaphore2",0);
@@ -191,7 +189,7 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
         return -1;
     }
 
-    sem_wait(sem3);
+  
 
 
     strcpy(SM[sockfd].other_end_ip,dest_ip);

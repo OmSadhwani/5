@@ -39,11 +39,11 @@ int main(int argv,char* argc[]){
         int retval=-1;
         // char sendm[MAX_MESSAGE_LENGTH];
         // strcpy(sendm,buffer);
-        printf("here\n");
+     
         while(retval<0){
             retval = m_sendto(sockfd,buffer,bytes_read,0,(struct sockaddr*)&serv_addr,sizeof(serv_addr));
         }
-        printf("here2\n");
+        
         // printf("%s",sendm);
         // i++;
     }

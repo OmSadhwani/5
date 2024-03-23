@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -I. -L.
+CFLAGS = -I. -L.
 SRC_MSOCKET = msocket.c
 OBJ_MSOCKET = $(SRC_MSOCKET:.c=.o)
 LIB_MSOCKET = libmsocket.a
