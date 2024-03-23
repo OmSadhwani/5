@@ -40,7 +40,7 @@ int main(int argv,char* argc[]){
         // buffer[1023]='\0';
         // printf("%s\n",buffer);
         write(fpr,buffer,strlen(buffer));
-        // fsync(fpr);
+        fsync(fpr);
     }
 
     // printf("\nDone receiving and now sending\n\n");

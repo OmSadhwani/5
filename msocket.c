@@ -58,8 +58,6 @@ int m_socket(int domain, int type, int protocol) {
         shmdt(sock_info);
         return -1;
     }
-    
-
     sem_t* sem1=sem_open("/semaphore1",0);
     sem_t* sem2= sem_open("/semaphore2",0);
     printf("hello1\n");
@@ -286,6 +284,7 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
         shmdt(SM);
         return -1;
 
+
     }
 
 
@@ -423,8 +422,9 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
 }
 
 int dropMessage(float p){
-    
-    float random = (float)((float)(rand()) / (float)RAND_MAX);
+
+    int randint=rand();
+    float random = (float)(randint) / (float)RAND_MAX;
     
   
     if (random < p) {

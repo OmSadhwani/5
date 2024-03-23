@@ -10,7 +10,8 @@ int max(int a,int b){
     if(a>b)return a;
     return b;
 }
-
+int transmission =0;
+int message=0;
 void signal_handler(int signum) {
     printf("\nReceived Ctrl+C. Detaching shared memory and quitting.\n");
     int shmid = shmget(6, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
@@ -24,6 +25,10 @@ void signal_handler(int signum) {
         perror("shmdt");
         exit(EXIT_FAILURE);
     }
+    printf("the transmissions  and messages are:%d %d\n",transmission,message );
+    float ratio=(float)(transmission)/(float)message;
+    printf("ratio:%f\n",ratio);
+
     // Destroy the semaphores
     sem_destroy(sem1);
     sem_destroy(sem2);
@@ -158,12 +163,14 @@ void *receiver_thread(void *arg) {
             printf("detected\n");
             for (int i = 0; i < MAX_MTP_SOCKETS; i++) {
                 if(SM[i].is_allocated==0 || SM[i].udp_socket_id<0)continue;
+
                 int sd = SM[i].udp_socket_id;
 
                 if (FD_ISSET(sd, &readfds)) {
                     // Handle incoming message
                     printf("%d index is set\n",i);
                     struct message_send msg;
+
                     struct sockaddr_in client_addr;
                     int client_addrlen=sizeof(client_addr);
                     recvfrom(sd, &msg, sizeof(msg), 0, (struct sockaddr *)&client_addr, &client_addrlen);
@@ -368,11 +375,10 @@ void *sender_thread(void *arg) {
         perror("shmat");
         exit(1);
     }
-    
+
     while (1) {
         // Sleep for some time less than T/2
         sleep(T / 2);
-
         sem_wait(sem3);
 
         // Iterate over MTP sockets
@@ -407,6 +413,8 @@ void *sender_thread(void *arg) {
                             perror("sendto failed");
                                 // Handle error
                         }
+
+                        else transmission++;
                         printf("message sent to %d\n",i);
                         SM[i].senders_window.time[j]=time(NULL);
                         
@@ -430,6 +438,10 @@ void *sender_thread(void *arg) {
                             perror("sendto failed");
                                 // Handle error
                         }
+
+                        else {
+                            transmission++;
+                            message++;}
                         printf("message sent to %d for the first time\n",i);
                         SM[i].senders_window.time[j]=time(NULL);
                     }

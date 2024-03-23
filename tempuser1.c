@@ -34,8 +34,9 @@ int main(int argv,char* argc[]){
     char buffer[MAX_MESSAGE_LENGTH+1];
     size_t bytes_read;
 
-    // int i=0;
+    int message=0;
     while ((bytes_read = read(fps, buffer, MAX_MESSAGE_LENGTH)) > 0) {
+        message++;
         int retval=-1;
         // char sendm[MAX_MESSAGE_LENGTH];
         // strcpy(sendm,buffer);
@@ -61,7 +62,7 @@ int main(int argv,char* argc[]){
     //     fwrite(buffer,1,strlen(buffer)+1,fpr);
     // }
 
-    fprintf(stderr,"Done\n");
+    fprintf(stderr,"Done %d\n",message);
     
     close(fpr);
     close(fps);
