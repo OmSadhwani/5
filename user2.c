@@ -11,21 +11,33 @@ int main(){
     serv_addr.sin_port=htons(6001);
     inet_aton("127.0.0.1",&serv_addr.sin_addr);
     // int retval = m_sendto(sockfd,"Hello there",11,0,(struct sockaddr*)&serv_addr,sizeof(serv_addr));
+    
+ 
+    // FILE* fp= fopen("text.txt","r");
     char buffer[1024];
-    memset(buffer,'\0',1024);
-    // sleep(10);
-    int i=0;
-    while(i<25){
-        int retval = m_recvfrom(sockfd,buffer,1024,0,(struct sockaddr*)&serv_addr,sizeof(serv_addr));
+    memset(buffer,'\0',sizeof(buffer));
+    while(1){
+        int retval= m_recvfrom(sockfd,buffer,1024,0,(struct sockaddr*)&serv_addr,sizeof(serv_addr));
         if(retval>0){
-            fprintf(stderr,"Received: %s\n",buffer);
-            i++;
-        }
-        
-    }
+            printf("%s",buffer);
+            memset(buffer,'\0',sizeof(buffer));
 
-    int retval = m_sendto(sockfd,"Bye\0",5,0,(struct sockaddr*)&serv_addr,sizeof(serv_addr));
-    fprintf(stderr,"Sent: %s\n","Bye");
+        }
+
+    }
+    // sleep(10);
+    // int i=0;
+    // while(i<25){
+    //     int retval = m_recvfrom(sockfd,buffer,1024,0,(struct sockaddr*)&serv_addr,sizeof(serv_addr));
+    //     if(retval>0){
+    //         fprintf(stderr,"Received: %s\n",buffer);
+    //         i++;
+    //     }
+        
+    // }
+
+    // int retval = m_sendto(sockfd,"Bye\0",5,0,(struct sockaddr*)&serv_addr,sizeof(serv_addr));
+    // fprintf(stderr,"Sent: %s\n","Bye");
 
     // int retval = m_recvfrom(sockfd,buffer,1024,0,(struct sockaddr*)&serv_addr,sizeof(serv_addr));
     // fprintf(stderr, "Received: %s\n", buffer);

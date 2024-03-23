@@ -8,13 +8,13 @@ SRC_INITMSOCKET = initsocket.c
 OBJ_INITMSOCKET = $(SRC_INITMSOCKET:.c=.o)
 TARGET_INITMSOCKET = initmsocket
 
-SRC_USER1 = user1.c
+SRC_USER1 = tempuser1.c
 OBJ_USER1 = $(SRC_USER1:.c=.o)
-TARGET_USER1 = user1
+TARGET_USER1 = tempuser1
 
-SRC_USER2 = user2.c
+SRC_USER2 = tempuser2.c
 OBJ_USER2 = $(SRC_USER2:.c=.o)
-TARGET_USER2 = user2
+TARGET_USER2 = tempuser2
 
 LIBS = -lmsocket
 

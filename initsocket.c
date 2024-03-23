@@ -5,7 +5,7 @@
 sem_t *sem1, *sem2,*sem3;
 struct MTPSocketInfo *SM;
 struct SOCK_INFO *sock_info;
-
+int glshmid,glshm;
 int max(int a,int b){
     if(a>b)return a;
     return b;
@@ -13,6 +13,8 @@ int max(int a,int b){
 
 void signal_handler(int signum) {
     printf("\nReceived Ctrl+C. Detaching shared memory and quitting.\n");
+    int shmid = shmget(6, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
+    int shmid2 = shmget(5, sizeof(struct SOCK_INFO), 0666);
     // Detach the shared memory segments
     if (shmdt(SM) == -1) {
         perror("shmdt");
@@ -27,6 +29,8 @@ void signal_handler(int signum) {
     sem_destroy(sem2);
     sem_destroy(sem3);
     printf("Shared memory and semaphores detached and destroyed successfully.\n");
+    shmctl(shmid,IPC_RMID,0);
+    shmctl(shmid2,IPC_RMID,0);
     exit(EXIT_SUCCESS);
 }
 
@@ -43,8 +47,9 @@ void get_ip_port(const struct sockaddr_in *client_addr, char *ip_str, size_t ip_
 }
 
 void send_ack(int i){
+    printf("entered sendack\n");
     key_t key = 6;
-    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
+    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
     if (shmid == -1) {
         perror("Error creating shared memory");
         exit(1);
@@ -87,6 +92,8 @@ void send_ack(int i){
         perror("sendto failed");
             // Handle error
     }
+
+    printf("exited sendack \n");
     
     
 }
@@ -99,7 +106,7 @@ void *receiver_thread(void *arg) {
     time_t last_ack_sent[MAX_MTP_SOCKETS]={0};
     
     key_t key = 6;
-    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
+    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
     if (shmid == -1) {
         perror("Error creating shared memory");
         exit(1);
@@ -146,6 +153,7 @@ void *receiver_thread(void *arg) {
         }
         if(activity>0){
             sem_wait(sem3);
+            printf("entered R thread again\n");
 
             printf("detected\n");
             for (int i = 0; i < MAX_MTP_SOCKETS; i++) {
@@ -158,7 +166,6 @@ void *receiver_thread(void *arg) {
                     struct message_send msg;
                     struct sockaddr_in client_addr;
                     int client_addrlen=sizeof(client_addr);
-
                     recvfrom(sd, &msg, sizeof(msg), 0, (struct sockaddr *)&client_addr, &client_addrlen);
                     if(dropMessage(probability)){
                         printf("Message Dropped\n");
@@ -223,7 +230,7 @@ void *receiver_thread(void *arg) {
                             continue;
                         }
                         struct message_receive m;
-                        strcpy(m.data,msg.data);
+                        memcpy(m.data,msg.data,1024);
                         m.num=msg.header.number;
                         SM[i].receivers_window.receive_messages[index]=m;
                         SM[i].receivers_window.receive_messages[index].num=m.num;
@@ -275,7 +282,7 @@ void *receiver_thread(void *arg) {
                         int j=0;
                         while(index<10){
                             memset(SM[i].senders_window.send_messages[j].data,'\0',sizeof(SM[i].senders_window.send_messages[j].data));
-                            strcpy(SM[i].senders_window.send_messages[j].data,SM[i].senders_window.send_messages[index].data);
+                            memcpy(SM[i].senders_window.send_messages[j].data,SM[i].senders_window.send_messages[index].data,1024);
                             memset(SM[i].senders_window.send_messages[index].data,'\0',sizeof(SM[i].senders_window.send_messages[index].data));
                             SM[i].senders_window.send_messages[j].header.is_ack=SM[i].senders_window.send_messages[index].header.is_ack;
                             SM[i].senders_window.send_messages[j].header.number=SM[i].senders_window.send_messages[index].header.number;
@@ -299,6 +306,7 @@ void *receiver_thread(void *arg) {
                     }
                 }
             }
+            printf("exited from R thread \n");
             sem_post(sem3);
         }
         else if (activity==0){
@@ -328,18 +336,20 @@ void *receiver_thread(void *arg) {
                     SM[i].receivers_window.nospace=0;
                 } 
             }
+            printf("exited R timeout thread\n");
             sem_post(sem3);
         }
 
 
 
     }
+    shmdt(SM);
     return NULL;
 }
 
 void *sender_thread(void *arg) {
     key_t key = 6;
-    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
+    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
     if (shmid == -1) {
         perror("Error creating shared memory");
         exit(1);
@@ -423,13 +433,14 @@ void *sender_thread(void *arg) {
         }
         sem_post(sem3);
     }
+    shmdt(SM);
 
     return NULL;
 }
 
 void *garbage_collector(void *arg) {
     key_t key = 6;
-    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
+    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
     if (shmid == -1) {
         perror("Error creating shared memory");
         return -1;
@@ -466,11 +477,13 @@ void *garbage_collector(void *arg) {
         }
     }
     sem_post(sem3);
+    shmdt(SM);
     return NULL;
 }
 
 int main() {
     // Create shared memory
+    signal(SIGINT,signal_handler);
     key_t key = 6;
     int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
     if (shmid == -1) {
@@ -506,12 +519,7 @@ int main() {
 
     
 
-    // Start garbage collector thread
-    pthread_t garbage_collector_tid;
-    if (pthread_create(&garbage_collector_tid, NULL, garbage_collector, NULL) != 0) {
-        perror("Error creating garbage collector thread");
-        return -1;
-    }
+    
 
     key = 5;
     shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 | IPC_CREAT);
@@ -569,8 +577,15 @@ int main() {
         perror("Error creating sender thread");
         return -1;
     }
+    // Start garbage collector thread
+    // pthread_t garbage_collector_tid;
+    // if (pthread_create(&garbage_collector_tid, NULL, garbage_collector, NULL) != 0) {
+    //     perror("Error creating garbage collector thread");
+    //     return -1;
+    // }
 
     // Main thread waits for m_socket() or m_bind() call
+
     while (1) {
         sem_wait(sem1); // Wait for semaphore signal
 
@@ -599,6 +614,9 @@ int main() {
 
         sem_post(sem2); // Signal completion
     }
+
+    shmdt(SM);
+    shmdt(sock_info);
 
     return 0;
 }

@@ -15,7 +15,7 @@ int m_socket(int domain, int type, int protocol) {
         return -1;
     }
     key_t key = 6;
-    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
+    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 );
     if (shmid == -1) {
        
         return -1;
@@ -28,7 +28,7 @@ int m_socket(int domain, int type, int protocol) {
     }
 
     key = 5;
-    shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 | IPC_CREAT);
+    shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 );
     if (shmid == -1) {
        
         return -1;
@@ -37,7 +37,8 @@ int m_socket(int domain, int type, int protocol) {
     // Attach shared memory segment
     sock_info = (struct SOCK_INFO *)shmat(shmid, NULL, 0);
     if (sock_info == (struct SOCK_INFO *)(-1)) {
-      
+        shmdt(SM);
+       
         return -1;
     }
     sem_t* sem3= sem_open(ne,0);
@@ -54,7 +55,8 @@ int m_socket(int domain, int type, int protocol) {
     }
     if (free_entry_index == -1) {
         errno = ENOBUFS; // No buffer space available
-     
+        shmdt(SM);
+        shmdt(sock_info);
         return -1;
     }
     sem_t* sem1=sem_open("/semaphore1",0);
@@ -73,6 +75,8 @@ int m_socket(int domain, int type, int protocol) {
         strcpy(sock_info->IP, "");
         sock_info->port = 0;
         sock_info->err_ = 0;
+        shmdt(SM);
+        shmdt(sock_info);
         return -1;
     }
 
@@ -110,7 +114,7 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
     
 
     key_t key = 6;
-    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
+    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 );
     if (shmid == -1) {
         
         return -1;
@@ -123,10 +127,11 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
         exit(1);
     }
 
+    
     key = 5;
-    shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 | IPC_CREAT);
+    shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 );
     if (shmid == -1) {
-       
+        shmdt(SM);
         return -1;
     }
     struct SOCK_INFO *sock_info;
@@ -134,17 +139,21 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
 
     sock_info = (struct SOCK_INFO *)shmat(shmid, NULL, 0);
     if (sock_info == (struct SOCK_INFO *)(-1)) {
-       
+        shmdt(SM);
         exit(1);
     }
 
     // Check if the socket is already bound
     if (SM[sockfd].udp_socket_id == -1) {
         errno = EINVAL; // Invalid argument
+        shmdt(SM);
+        shmdt(sock_info);
         return -1;
     }
     if (sockfd < 0 || sockfd >= MAX_MTP_SOCKETS || SM[sockfd].is_allocated==0) {
         errno = EBADF; // Bad file descriptor
+        shmdt(SM);
+        shmdt(sock_info);
         return -1;
     } // Update SM with destination IP and destination port
 
@@ -171,8 +180,11 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
         strcpy(sock_info->IP, "");
         sock_info->port = 0;
         sock_info->err_ = 0;
+        shmdt(SM);
+        shmdt(sock_info);
         return -1;
     }
+
 
 
     sem_wait(sem3);
@@ -188,6 +200,7 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
     sem_post(sem3);
     // Update SM with destination IP and destination port
     if(shmdt(SM)==-1){
+
         return -1;
     }
     if(shmdt(sock_info)==-1){
@@ -210,7 +223,7 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
 
     
     key_t key = 6;
-    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
+    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 );
     if (shmid == -1) {
         perror("shmget");
         return -1;
@@ -224,13 +237,14 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
 
     if (sockfd < 0 || sockfd >= MAX_MTP_SOCKETS || SM[sockfd].is_allocated==0) {
         errno = EBADF; 
-        
+        shmdt(SM);
         return -1;
     }
 
     sem_t* sem3= sem_open(ne,0);
     
     if(sem_wait(sem3)==-1){
+        shmdt(SM);
         return -1;
     }
     
@@ -256,6 +270,7 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
         
         errno = ENOTBOUND;
         sem_post(sem3);
+        shmdt(SM);
         return -1;
     }
 
@@ -265,6 +280,7 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
         
         errno = ENOBUFS;
         sem_post(sem3);
+        shmdt(SM);
         return -1;
 
     }
@@ -295,10 +311,11 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
     SM[sockfd].senders_window.index_to_write++;
 
     if(sem_post(sem3)==-1){
-      
+        shmdt(SM);
         return -1;
     }
     if(shmdt(SM)==-1){
+        
         return -1;
     }
     
@@ -313,7 +330,7 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
 int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *src_addr, socklen_t *addrlen) {
     
     key_t key = 6;
-    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
+    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 );
     if (shmid == -1) {
         
         return -1;
@@ -328,12 +345,14 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
 
     if (sockfd < 0 || sockfd >= MAX_MTP_SOCKETS || SM[sockfd].is_allocated==0) {
         errno = EBADF; // Bad file descriptor
+        shmdt(SM);
         return -1;
     }
 
     sem_t* sem3= sem_open(ne,0);
     // printf("hello in receive \n");
     if(sem_wait(sem3)==-1){
+        shmdt(SM);
         return -1;
     }
 
@@ -342,6 +361,7 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
     struct MTPSocketInfo soc = SM[sockfd];
     if (soc.receivers_window.receive_messages[0].num==-1) {
         errno = ENOMSG; // No message available
+        shmdt(SM);
         sem_post(sem3);
         return -1;
     }
@@ -378,7 +398,7 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
         }
         else{
             memset(SM[sockfd].receivers_window.receive_messages[j].data,'\0',sizeof((SM[sockfd].receivers_window.receive_messages[j].data)));
-            strcpy(SM[sockfd].receivers_window.receive_messages[j].data,SM[sockfd].receivers_window.receive_messages[j+1].data);
+            memcpy(SM[sockfd].receivers_window.receive_messages[j].data,SM[sockfd].receivers_window.receive_messages[j+1].data,1024);
             SM[sockfd].receivers_window.receive_messages[j].num=SM[sockfd].receivers_window.receive_messages[j+1].num;
             
         }
@@ -389,12 +409,13 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
     SM[sockfd].receivers_window.window_size++;
 
     if(sem_post(sem3)==-1){
+        shmdt(SM);
         return -1;
     }
 
     printf("receive successful\n");
  
-
+    shmdt(SM);
     return len; // Return the length of the received message
 }
 
@@ -409,15 +430,13 @@ int dropMessage(float p){
         return 0;
     }
 }
-
 int m_close(int sockfd){
     key_t key = 6;
-    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
+    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 );
     if (shmid == -1) {
         
         return -1;
     }
-
     // Attach shared memory segment
     struct MTPSocketInfo *SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
     if (SM == (struct MTPSocketInfo *)(-1)) {
@@ -427,6 +446,7 @@ int m_close(int sockfd){
 
     if (sockfd < 0 || sockfd >= MAX_MTP_SOCKETS || SM[sockfd].is_allocated!=1) {
         errno = EBADF; // Bad file descriptor
+        shmdt(SM);
         return -1;
     }
     sem_t* sem3= sem_open(ne,0);
