@@ -9,6 +9,7 @@
 
 
 int m_socket(int domain, int type, int protocol) {
+    printf("Reached here\n");
     // Check if the requested socket type is SOCK_MTP
     if (type != SOCK_MTP) {
         errno = EINVAL; 
@@ -59,6 +60,8 @@ int m_socket(int domain, int type, int protocol) {
         shmdt(sock_info);
         return -1;
     }
+    
+
     sem_t* sem1=sem_open("/semaphore1",0);
     sem_t* sem2= sem_open("/semaphore2",0);
     printf("hello1\n");
@@ -80,7 +83,7 @@ int m_socket(int domain, int type, int protocol) {
         return -1;
     }
 
-
+    
     // Initialize the shared memory entry for the new MTP socket
     SM[free_entry_index].is_allocated = 1; // Mark the socket as allocated
     SM[free_entry_index].udp_socket_id = sock_info->sock_id;
@@ -142,7 +145,8 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
         shmdt(SM);
         exit(1);
     }
-
+    sem_t* sem3= sem_open(ne,0);
+    sem_wait(sem3);
     // Check if the socket is already bound
     if (SM[sockfd].udp_socket_id == -1) {
         errno = EINVAL; // Invalid argument
@@ -162,10 +166,10 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
     strcpy(sock_info->IP,source_ip);
     printf("hellop\n");
     printf("%d\n",sock_info->sock_id);
+    sem_post(sem3);
 
     sem_t* sem1=sem_open("/semaphore1",0);
     sem_t* sem2= sem_open("/semaphore2",0);
-    sem_t* sem3= sem_open(ne,0);
 
      // Signal on Sem1
     sem_post(sem1);
@@ -173,6 +177,8 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
     // Wait on Sem2
     sem_wait(sem2);
     printf("hello\n");
+
+    
 
     if(sock_info->sock_id==-1){
         errno=sock_info->err_;
@@ -185,9 +191,9 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
         return -1;
     }
 
-
-
     sem_wait(sem3);
+
+
     strcpy(SM[sockfd].other_end_ip,dest_ip);
     SM[sockfd].other_end_port = dest_port;
 
@@ -210,8 +216,7 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
     sem_close(sem2);
     sem_close(sem3);
 
- 
-    
+
 
     return 0;
 }

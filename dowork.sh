@@ -23,5 +23,4 @@ do
     dest_port=$((myport + 1))
     ./tempuser2 "$dest_port" "$myport" &
     ./tempuser1 "$myport" "$dest_port" &
-    # echo "##########"
 done

@@ -24,16 +24,16 @@ $(LIB_MSOCKET): $(OBJ_MSOCKET)
 		ar rcs $@ $^
 
 $(TARGET_INITMSOCKET): $(OBJ_INITMSOCKET) $(LIB_MSOCKET)
-		$(CC) $(CFLAGS) -o $@ $^
+		$(CC) $(CFLAGS) -o $@ $^ -lpthread
 
 $(TARGET_USER1): $(OBJ_USER1) $(LIB_MSOCKET)
-		$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
+		$(CC) $(CFLAGS) -o $@ $^ $(LIBS) -lpthread
 
 $(TARGET_USER2): $(OBJ_USER2) $(LIB_MSOCKET)
-		$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
+		$(CC) $(CFLAGS) -o $@ $^ $(LIBS) -lpthread
 
 %.o: %.c
-		$(CC) $(CFLAGS) -c -o $@ $<
+		$(CC) $(CFLAGS) -c -o $@ $< -lpthread
 
 clean:
 		rm -f $(OBJ_MSOCKET) $(LIB_MSOCKET) $(OBJ_INITMSOCKET) $(TARGET_INITMSOCKET) $(OBJ_USER1) $(TARGET_USER1) $(OBJ_USER2) $(TARGET_USER2)

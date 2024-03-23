@@ -504,6 +504,24 @@ int main() {
         perror("shmat");
         exit(1);
     }
+    sem1 = sem_open("/semaphore1", O_CREAT , 0666, 0);
+
+        printf("hii\n");
+    if (sem1 == SEM_FAILED) {
+        perror("sem_open\n");
+        return 1;
+    }
+
+    sem2 = sem_open("/semaphore2", O_CREAT, 0666, 0);
+    if (sem2 == SEM_FAILED) {
+        perror("sem_open\n");
+        return 1;
+    }
+    sem3=sem_open(ne,O_CREAT,0666,1);
+    if(sem3==SEM_FAILED){
+        perror("sem open\n");
+        return 1;
+    }
     
     for (int i = 0; i < MAX_MTP_SOCKETS; i++) {
         SM[i].is_allocated = 0; // Mark all sockets as free
@@ -552,24 +570,7 @@ int main() {
 
     printf("hi\n");
     // sem1 = sem_open("/semaphore1", O_CREAT, 0666, 0);
-    sem1 = sem_open("/semaphore1", O_CREAT | O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH, 0);
-
-        printf("hii\n");
-    if (sem1 == SEM_FAILED) {
-        perror("sem_open\n");
-        return 1;
-    }
-
-    sem2 = sem_open("/semaphore2", O_CREAT, 0666, 0);
-    if (sem2 == SEM_FAILED) {
-        perror("sem_open\n");
-        return 1;
-    }
-    sem3=sem_open(ne,O_CREAT,0666,1);
-    if(sem3==SEM_FAILED){
-        perror("sem open\n");
-        return 1;
-    }
+    
 
 
     pthread_t receiver_tid;
