@@ -234,8 +234,15 @@ void *receiver_thread(void *arg) {
                         m.num=msg.header.number;
                         SM[i].receivers_window.receive_messages[index]=m;
                         SM[i].receivers_window.receive_messages[index].num=m.num;
-                        
-                        SM[i].receivers_window.window_size--;
+                        int fr=5;
+                        for(int j=0;j<5;j++){
+                            if(SM[i].receivers_window.receive_messages[j].num==-1){
+                                fr=j;
+                                break;
+                            }
+                        }
+                        SM[i].receivers_window.window_size=5-fr;
+                        // SM[i].receivers_window.window_size--;
                         if(SM[i].receivers_window.window_size==0){
                             SM[i].receivers_window.nospace=1;
                         }
