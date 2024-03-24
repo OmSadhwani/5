@@ -418,7 +418,6 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
     shmdt(SM);
     return len; // Return the length of the received message
 }
-
 int dropMessage(float p){
 
     int randint=rand();

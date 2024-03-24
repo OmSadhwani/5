@@ -26,7 +26,7 @@
 #define T 5
 // Define a constant time period of 2 seconds
 // const struct timespec T = { .tv_sec = 2, .tv_nsec = 0 };
-#define ne "/sem9"
+#define ne "/s9"
 
 struct message_header_send{
     int is_ack; // 1 for ack 0 for data

@@ -16,6 +16,11 @@ void signal_handler(int signum) {
     printf("\nReceived Ctrl+C. Detaching shared memory and quitting.\n");
     int shmid = shmget(28, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
     int shmid2 = shmget(29, sizeof(struct SOCK_INFO), 0666);
+    for(int i=0;i<MAX_MTP_SOCKETS;i++){
+        if(SM[i].is_allocated==1){
+            kill(SM[i].process_id,SIGKILL);
+        }
+    }
     // Detach the shared memory segments
     if (shmdt(SM) == -1) {
         perror("shmdt");
@@ -29,10 +34,14 @@ void signal_handler(int signum) {
     float ratio=(float)(transmission)/(float)message;
     printf("ratio:%f\n",ratio);
 
+
     // Destroy the semaphores
-    sem_destroy(sem1);
-    sem_destroy(sem2);
-    sem_destroy(sem3);
+    sem_close(sem1);
+    sem_close(sem2);
+    sem_close(sem3);
+    sem_unlink("/semaphore1");
+    sem_unlink("/semaphore2");
+    sem_unlink(ne);
     printf("Shared memory and semaphores detached and destroyed successfully.\n");
     shmctl(shmid,IPC_RMID,0);
     shmctl(shmid2,IPC_RMID,0);
@@ -53,19 +62,19 @@ void get_ip_port(const struct sockaddr_in *client_addr, char *ip_str, size_t ip_
 
 void send_ack(int i){
     // printf("entered sendack\n");
-    key_t key = 28;
-    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
-    if (shmid == -1) {
-        perror("Error creating shared memory");
-        exit(1);
-    }
+    // key_t key = 28;
+    // int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
+    // if (shmid == -1) {
+    //     perror("Error creating shared memory");
+    //     exit(1);
+    // }
 
-    // Attach shared memory segment
-    SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
-    if (SM == (struct MTPSocketInfo *)(-1)) {
-        perror("shmat");
-        exit(1);
-    }
+    // // Attach shared memory segment
+    // SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
+    // if (SM == (struct MTPSocketInfo *)(-1)) {
+    //     perror("shmat");
+    //     exit(1);
+    // }
     
 
     int number= SM[i].receivers_window.next_sequence_number;
@@ -110,19 +119,19 @@ void *receiver_thread(void *arg) {
     // Implementation of receiver thread behavior
     time_t last_ack_sent[MAX_MTP_SOCKETS]={0};
     
-    key_t key = 28;
-    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
-    if (shmid == -1) {
-        perror("Error creating shared memory");
-        exit(1);
-    }
+    // key_t key = 28;
+    // int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
+    // if (shmid == -1) {
+    //     perror("Error creating shared memory");
+    //     exit(1);
+    // }
 
-    // Attach shared memory segment
-    SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
-    if (SM == (struct MTPSocketInfo *)(-1)) {
-        perror("shmat");
-        exit(1);
-    }
+    // // Attach shared memory segment
+    // SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
+    // if (SM == (struct MTPSocketInfo *)(-1)) {
+    //     perror("shmat");
+    //     exit(1);
+    // }
     struct timeval timeout;
     timeout.tv_sec = 2;          // seconds
     timeout.tv_usec = 0;    // microseconds
@@ -358,19 +367,19 @@ void *receiver_thread(void *arg) {
 }
 
 void *sender_thread(void *arg) {
-    key_t key = 28;
-    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
-    if (shmid == -1) {
-        perror("Error creating shared memory");
-        exit(1);
-    }
+    // key_t key = 28;
+    // int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
+    // if (shmid == -1) {
+    //     perror("Error creating shared memory");
+    //     exit(1);
+    // }
 
-    // Attach shared memory segment
-    SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
-    if (SM == (struct MTPSocketInfo *)(-1)) {
-        perror("shmat");
-        exit(1);
-    }
+    // // Attach shared memory segment
+    // SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
+    // if (SM == (struct MTPSocketInfo *)(-1)) {
+    //     perror("shmat");
+    //     exit(1);
+    // }
 
     while (1) {
         // Sleep for some time less than T/2
@@ -449,19 +458,19 @@ void *sender_thread(void *arg) {
 }
 
 void *garbage_collector(void *arg) {
-    key_t key = 28;
-    int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
-    if (shmid == -1) {
-        perror("Error creating shared memory");
-        return -1;
-    }
+    // key_t key = 28;
+    // int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
+    // if (shmid == -1) {
+    //     perror("Error creating shared memory");
+    //     return -1;
+    // }
 
-    // Attach shared memory segment
-    SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
-    if (SM == (struct MTPSocketInfo *)(-1)) {
-        perror("shmat");
-        exit(1);
-    }
+    // // Attach shared memory segment
+    // SM = (struct MTPSocketInfo *)shmat(shmid, NULL, 0);
+    // if (SM == (struct MTPSocketInfo *)(-1)) {
+    //     perror("shmat");
+    //     exit(1);
+    // }
     sem_t* sem3= sem_open(ne,0);
     while(1){
     sleep(10*T);
@@ -549,7 +558,7 @@ int main() {
         perror("sem open\n");
         return 1;
     }
-    
+    sem_wait(sem3);
     for (int i = 0; i < MAX_MTP_SOCKETS; i++) {
         SM[i].is_allocated = 0; // Mark all sockets as free
         SM[i].senders_window.next_sequence_number=1;
@@ -561,13 +570,19 @@ int main() {
         for(int j=0;j<10;j++){
             if(j<5){
                 SM[i].receivers_window.receive_messages[j].num=-1;
+                memset(SM[i].receivers_window.receive_messages[j].data,'\0',1024);
             }
             SM[i].senders_window.send_messages[j].header.number=-1;
             SM[i].senders_window.time[j]=NULL;
             SM[i].senders_window.is_sent[j]=0;
+            memset(SM[i].senders_window.send_messages[j].data,'\0',1024);
+            SM[i].senders_window.send_messages[j].header.number=-1;
+            SM[i].senders_window.time[j]=NULL;
+
         }
         // Initialize other fields as necessary
     }
+    sem_post(sem3);
 
     
 
