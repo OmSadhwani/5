@@ -413,7 +413,7 @@ int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *sr
         return -1;
     }
 
-    printf("receive successful\n");
+    // printf("receive successful\n");
  
     shmdt(SM);
     return len; // Return the length of the received message
