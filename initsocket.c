@@ -1,7 +1,6 @@
 #include "msocket.h"
 
 
-
 sem_t *sem1, *sem2,*sem3;
 struct MTPSocketInfo *SM;
 struct SOCK_INFO *sock_info;
@@ -10,12 +9,13 @@ int max(int a,int b){
     if(a>b)return a;
     return b;
 }
+
 int transmission =0;
 int message=0;
 void signal_handler(int signum) {
     printf("\nReceived Ctrl+C. Detaching shared memory and quitting.\n");
-    int shmid = shmget(6, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
-    int shmid2 = shmget(5, sizeof(struct SOCK_INFO), 0666);
+    int shmid = shmget(28, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
+    int shmid2 = shmget(29, sizeof(struct SOCK_INFO), 0666);
     // Detach the shared memory segments
     if (shmdt(SM) == -1) {
         perror("shmdt");
@@ -52,8 +52,8 @@ void get_ip_port(const struct sockaddr_in *client_addr, char *ip_str, size_t ip_
 }
 
 void send_ack(int i){
-    printf("entered sendack\n");
-    key_t key = 6;
+    // printf("entered sendack\n");
+    key_t key = 28;
     int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
     if (shmid == -1) {
         perror("Error creating shared memory");
@@ -98,7 +98,7 @@ void send_ack(int i){
             // Handle error
     }
 
-    printf("exited sendack \n");
+    // printf("exited sendack \n");
     
     
 }
@@ -110,7 +110,7 @@ void *receiver_thread(void *arg) {
     // Implementation of receiver thread behavior
     time_t last_ack_sent[MAX_MTP_SOCKETS]={0};
     
-    key_t key = 6;
+    key_t key = 28;
     int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
     if (shmid == -1) {
         perror("Error creating shared memory");
@@ -124,7 +124,7 @@ void *receiver_thread(void *arg) {
         exit(1);
     }
     struct timeval timeout;
-    timeout.tv_sec = 5;          // seconds
+    timeout.tv_sec = 2;          // seconds
     timeout.tv_usec = 0;    // microseconds
     
     fd_set readfds;
@@ -132,7 +132,7 @@ void *receiver_thread(void *arg) {
     int mx=0;
     
     sem_wait(sem3);
-    printf("hhh\n");
+    // printf("hhh\n");
     for (int i = 0; i < MAX_MTP_SOCKETS; i++) {
             // If socket descriptor is valid, add to read list
             if (SM[i].is_allocated && SM[i].udp_socket_id > 0) {
@@ -160,7 +160,7 @@ void *receiver_thread(void *arg) {
             sem_wait(sem3);
             printf("entered R thread again\n");
 
-            printf("detected\n");
+            // printf("detected\n");
             for (int i = 0; i < MAX_MTP_SOCKETS; i++) {
                 if(SM[i].is_allocated==0 || SM[i].udp_socket_id<0)continue;
 
@@ -168,7 +168,7 @@ void *receiver_thread(void *arg) {
 
                 if (FD_ISSET(sd, &readfds)) {
                     // Handle incoming message
-                    printf("%d index is set\n",i);
+                    // printf("%d index is set\n",i);
                     struct message_send msg;
 
                     struct sockaddr_in client_addr;
@@ -196,7 +196,7 @@ void *receiver_thread(void *arg) {
     
                         
                         if(SM[i].receivers_window.nospace==1){ //buffer full
-                            printf("the buffer is full\n");
+                            printf("the buffer is full\n******************\n");
                             continue;
                         }
                         int expected_number= SM[i].receivers_window.next_sequence_number;
@@ -263,10 +263,7 @@ void *receiver_thread(void *arg) {
 
                     } else {
                         printf("the message received is ack for sequence number %d \n",msg.header.number);
-                        printf("The sequence numbers present in the buffer are \n");
-                        for(int k=0;k<5;k++){
-                            printf("%d\n",SM[i].senders_window.send_messages[k].header.number);
-                        }
+                        
 
                         int index=-1;
                         int window_sz= atoi(msg.data);
@@ -307,10 +304,10 @@ void *receiver_thread(void *arg) {
                             index++;
                             j++;
                         }
-                        printf("The sequence numbers present in the buffer are \n");
-                        for(int k=0;k<5;k++){
-                            printf("%d\n",SM[i].senders_window.send_messages[k].header.number);
-                        }
+                        // printf("The sequence numbers present in the buffer are \n");
+                        // for(int k=0;k<5;k++){
+                        //     printf("%d\n",SM[i].senders_window.send_messages[k].header.number);
+                        // }
                         // printf("the messages in the send buffer after of %d are\n",i);
                         // for(int j=0;j<10;j++){
                         //     printf("j: \n");
@@ -320,20 +317,19 @@ void *receiver_thread(void *arg) {
                     }
                 }
             }
-            printf("exited from R thread \n");
+            printf("exited from R thread \n******************\n");
             sem_post(sem3);
         }
         else if (activity==0){
             mx=0;
             FD_ZERO(&readfds);
-            timeout.tv_sec=T;
+            timeout.tv_sec=2;
             timeout.tv_usec=0;
             sem_wait(sem3);
             for(int i=0;i<25;i++){
                 if(SM[i].is_allocated && SM[i].udp_socket_id>0){
                     FD_SET(SM[i].udp_socket_id,&readfds);
                     mx=max(mx,SM[i].udp_socket_id);
-                    printf("%d added to the set\n",SM[i].udp_socket_id);
                     if((SM[i].receivers_window.nospace==1 && SM[i].receivers_window.window_size>0)){
                         SM[i].receivers_window.nospace=0;
                         
@@ -350,7 +346,7 @@ void *receiver_thread(void *arg) {
                     SM[i].receivers_window.nospace=0;
                 } 
             }
-            printf("exited R timeout thread\n");
+            printf("exited R timeout thread\n******************\n");
             sem_post(sem3);
         }
 
@@ -362,7 +358,7 @@ void *receiver_thread(void *arg) {
 }
 
 void *sender_thread(void *arg) {
-    key_t key = 6;
+    key_t key = 28;
     int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
     if (shmid == -1) {
         perror("Error creating shared memory");
@@ -392,12 +388,6 @@ void *sender_thread(void *arg) {
                 // printf("%d here\n",i);
                 if(SM[i].senders_window.time[0]!=NULL && difftime(time(NULL),SM[i].senders_window.time[0])>=T){
                     for(int j=0;j<SM[i].senders_window.window_size;j++){
-                        printf("Time out occured on index %d\n",i);
-                        printf("The sequence numbers present in the buffer are \n");
-                        for(int k=0;k<5;k++){
-                            printf("%d\n",SM[i].senders_window.send_messages[k].header.number);
-                        }
-                        printf("i=%d, j= %d\n",i,j);
 
                         if(SM[i].senders_window.send_messages[j].header.number==-1)break;
                         struct sockaddr_in client_addr;
@@ -415,7 +405,8 @@ void *sender_thread(void *arg) {
                         }
 
                         else transmission++;
-                        printf("message sent to %d\n",i);
+                        printf("Time out occured on index %d\n",i);
+                        printf("message sent to %d\n******************\n",i);
                         SM[i].senders_window.time[j]=time(NULL);
                         
                     }
@@ -433,16 +424,16 @@ void *sender_thread(void *arg) {
 
                         // Set address family
                         client_addr.sin_family = AF_INET;
-                        printf("%d \n",SM[i].udp_socket_id);
                         if (sendto(SM[i].udp_socket_id, &SM[i].senders_window.send_messages[j], sizeof(SM[i].senders_window.send_messages[j]), 0, (struct sockaddr *)&client_addr, client_addrlen) == -1) {
                             perror("sendto failed");
                                 // Handle error
                         }
 
+
                         else {
                             transmission++;
                             message++;}
-                        printf("message sent to %d for the first time\n",i);
+                        printf("message sent to socket index %d \n******************\n",i);
                         SM[i].senders_window.time[j]=time(NULL);
                     }
                 }
@@ -458,7 +449,7 @@ void *sender_thread(void *arg) {
 }
 
 void *garbage_collector(void *arg) {
-    key_t key = 6;
+    key_t key = 28;
     int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666);
     if (shmid == -1) {
         perror("Error creating shared memory");
@@ -528,7 +519,7 @@ void *garbage_collector(void *arg) {
 int main() {
     // Create shared memory
     signal(SIGINT,signal_handler);
-    key_t key = 6;
+    key_t key = 28;
     int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 | IPC_CREAT);
     if (shmid == -1) {
         perror("Error creating shared memory");
@@ -543,7 +534,6 @@ int main() {
     }
     sem1 = sem_open("/semaphore1", O_CREAT , 0666, 0);
 
-        printf("hii\n");
     if (sem1 == SEM_FAILED) {
         perror("sem_open\n");
         return 1;
@@ -583,7 +573,7 @@ int main() {
 
     
 
-    key = 5;
+    key = 29;
     shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 | IPC_CREAT);
     if (shmid == -1) {
         perror("Error creating shared memory for SOCK_INFO\n");
@@ -591,7 +581,6 @@ int main() {
     }
 
     // Attach shared memory segment
-    printf("hello\n");
     sock_info = (struct SOCK_INFO *)shmat(shmid, NULL, 0);
     if (sock_info == (struct SOCK_INFO *)(-1)) {
         perror("shmat\n");
@@ -605,7 +594,6 @@ int main() {
     sock_info->err_ = 0;
 
 
-    printf("hi\n");
     // sem1 = sem_open("/semaphore1", O_CREAT, 0666, 0);
     
 
@@ -638,7 +626,6 @@ int main() {
         if (sock_info->sock_id == 0 && strcmp(sock_info->IP, "") == 0 && sock_info->port == 0) {
             // m_socket() call
             sock_info->sock_id = socket(AF_INET, SOCK_DGRAM, 0);
-            printf("%d hello\n",sock_info->sock_id);
             if (sock_info->sock_id == -1) {
                 sock_info->err_ = errno;
             }
@@ -649,12 +636,10 @@ int main() {
             bind_addr.sin_family = AF_INET;
             bind_addr.sin_port = htons(sock_info->port);
             bind_addr.sin_addr.s_addr = inet_addr(sock_info->IP);
-            printf("here\n");
             if (bind(sock_info->sock_id, (struct sockaddr *)&bind_addr, sizeof(bind_addr)) == -1) {
                 sock_info->err_ = errno;
                 sock_info->sock_id = -1; // Reset sock_id if bind fails
             }
-            printf("hello5\n");
         }
 
         sem_post(sem2); // Signal completion

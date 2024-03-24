@@ -17,7 +17,7 @@
 #include <sys/stat.h>
 #include <signal.h>
 
-#define probability 0.50
+#define probability 0.05
 #define MAX_MTP_SOCKETS 25
 #define SOCK_MTP 3 // Custom socket type for MTP
 #define ENOTBOUND 177
@@ -27,7 +27,6 @@
 // Define a constant time period of 2 seconds
 // const struct timespec T = { .tv_sec = 2, .tv_nsec = 0 };
 #define ne "/sem9"
-
 
 struct message_header_send{
     int is_ack; // 1 for ack 0 for data

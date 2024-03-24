@@ -6,14 +6,15 @@
 // Assume MTPSocketInfo struct is defined in mtp_socket.h
 #include "msocket.h"
 
+key_t key1=28;
+key_t key2=29;
 int m_socket(int domain, int type, int protocol) {
-    printf("Reached here\n");
     // Check if the requested socket type is SOCK_MTP
     if (type != SOCK_MTP) {
         errno = EINVAL; 
         return -1;
     }
-    key_t key = 6;
+    key_t key = key1;
     int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 );
     if (shmid == -1) {
        
@@ -26,7 +27,7 @@ int m_socket(int domain, int type, int protocol) {
         return -1;
     }
 
-    key = 5;
+    key = key2;
     shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 );
     if (shmid == -1) {
        
@@ -43,7 +44,6 @@ int m_socket(int domain, int type, int protocol) {
     sem_t* sem3= sem_open(ne,0);
     sem_wait(sem3);
   
-    printf("hello\n");
     // Find a free entry in shared memory
     int free_entry_index = -1;
     for (int i = 0; i < MAX_MTP_SOCKETS; i++) {
@@ -60,8 +60,8 @@ int m_socket(int domain, int type, int protocol) {
     }
     sem_t* sem1=sem_open("/semaphore1",0);
     sem_t* sem2= sem_open("/semaphore2",0);
-    printf("hello1\n");
      // Signal on Sem1
+     
 
     sem_post(sem1);
 
@@ -84,7 +84,6 @@ int m_socket(int domain, int type, int protocol) {
     SM[free_entry_index].is_allocated = 1; // Mark the socket as allocated
     SM[free_entry_index].udp_socket_id = sock_info->sock_id;
     SM[free_entry_index].process_id=getpid();
-    printf("idx:%d, socket:%d\n", free_entry_index, SM[free_entry_index].udp_socket_id);
     sock_info->sock_id = 0;
     strcpy(sock_info->IP, "");
     sock_info->port = 0;
@@ -112,7 +111,7 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
 
     
 
-    key_t key = 6;
+    key_t key = key1;
     int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 );
     if (shmid == -1) {
         
@@ -127,7 +126,7 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
     }
 
     
-    key = 5;
+    key = key2;
     shmid = shmget(key, sizeof(struct SOCK_INFO), 0666 );
     if (shmid == -1) {
         shmdt(SM);
@@ -160,8 +159,6 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
     sock_info->port=source_port;
     sock_info->sock_id=SM[sockfd].udp_socket_id;
     strcpy(sock_info->IP,source_ip);
-    printf("hellop\n");
-    printf("%d\n",sock_info->sock_id);
     
 
     sem_t* sem1=sem_open("/semaphore1",0);
@@ -172,7 +169,6 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
 
     // Wait on Sem2
     sem_wait(sem2);
-    printf("hello\n");
 
     
 
@@ -212,6 +208,8 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
     sem_close(sem2);
     sem_close(sem3);
 
+    printf("Socket bind succesful\n");
+
 
 
     return 0;
@@ -223,7 +221,7 @@ int m_bind(int sockfd, char source_ip[50], unsigned short source_port, char dest
 int m_sendto(int sockfd, const void* data, int len, int flags, const struct sockaddr *servaddr, socklen_t addrlen ) {
 
     
-    key_t key = 6;
+    key_t key = key1;
     int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 );
     if (shmid == -1) {
         perror("shmget");
@@ -331,7 +329,7 @@ int m_sendto(int sockfd, const void* data, int len, int flags, const struct sock
 
 int m_recvfrom(int sockfd, void *buffer, int len, int flags, struct sockaddr *src_addr, socklen_t *addrlen) {
     
-    key_t key = 6;
+    key_t key = key1;
     int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 );
     if (shmid == -1) {
         
@@ -434,7 +432,7 @@ int dropMessage(float p){
     }
 }
 int m_close(int sockfd){
-    key_t key = 6;
+    key_t key = key1;
     int shmid = shmget(key, MAX_MTP_SOCKETS * sizeof(struct MTPSocketInfo), 0666 );
     if (shmid == -1) {
         

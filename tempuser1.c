@@ -19,9 +19,7 @@ int main(int argv,char* argc[]){
     sprintf(send_filename,"%d.txt",myport);
     int fps = open(send_filename,O_RDONLY,0666);
 
-    printf("Before\n");
     int sockfd = m_socket(AF_INET,SOCK_MTP, 0);
-    printf("After\n");
     m_bind(sockfd,"127.0.0.1",myport,"127.0.0.1",dest_port);
     struct sockaddr_in serv_addr;
     memset(&serv_addr,0,sizeof(serv_addr));
@@ -62,7 +60,7 @@ int main(int argv,char* argc[]){
     //     fwrite(buffer,1,strlen(buffer)+1,fpr);
     // }
 
-    fprintf(stderr,"Done %d\n",message);
+    fprintf(stderr,"Done %d messages \n",message);
     
     close(fpr);
     close(fps);
